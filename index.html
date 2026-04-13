@@ -1,1432 +1,610 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StockPad · Smart Inventory Management</title>
-
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <!-- Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-  <!-- App styles -->
-  <link rel="stylesheet" href="style.css?v=2" />                                      
-  <style>
-    /* =============================================
-       RESET & BASE
-    ============================================= */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --orange:         #F97316;
-      --orange-dark:    #EA6C0A;
-      --orange-light:   #FFF0E6;
-      --black:          #0D0D0D;
-      --grey-900:       #1A1A1A;
-      --grey-700:       #3D3D3D;
-      --grey-400:       #A0A0A0;
-      --grey-100:       #F4F4F5;
-      --white:          #FFFFFF;
-      --radius:         14px;
-      --shadow:         0 8px 40px rgba(0,0,0,0.10);
-      --transition:     0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-      --bg:             #F4F4F5;
-      --surface:        #FFFFFF;
-      --surface-2:      #F4F4F5;
-      --border:         #E5E5E5;
-      --border-soft:    #F0F0F0;
-      --text-primary:   #0D0D0D;
-      --text-secondary: #3D3D3D;
-      --text-muted:     #A0A0A0;
-      --input-bg:       #FFFFFF;
-      --nav-bg:         #FFFFFF;
-      --nav-border:     #EBEBEB;
-    }
-
-    [data-theme="dark"] {
-      --orange-light:   rgba(249,115,22,0.15);
-      --bg:             #0E0E0E;
-      --surface:        #181818;
-      --surface-2:      #1F1F1F;
-      --border:         #2C2C2C;
-      --border-soft:    #222222;
-      --text-primary:   #F0F0F0;
-      --text-secondary: #BBBBBB;
-      --text-muted:     #666666;
-      --input-bg:       #1F1F1F;
-      --nav-bg:         #141414;
-      --nav-border:     #242424;
-      --shadow:         0 8px 40px rgba(0,0,0,0.45);
-    }
-
-    html, body {
-      height: 100%;
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text-primary);
-      -webkit-font-smoothing: antialiased;
-      transition: background var(--transition), color var(--transition);
-    }
-
-    .hidden { display: none !important; }
-
-
-    /* =============================================
-       SPLASH SCREEN
-    ============================================= */
-    #splash {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: var(--orange);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      animation:
-        splashIn  0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards,
-        splashOut 0.6s cubic-bezier(0.4, 0, 1, 1) 2.0s forwards;
-    }
-
-    .splash-inner {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 18px;
-      animation: splashIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    }
-
-    .splash-logo {
-      width: 90px;
-      height: 90px;
-      object-fit: contain;
-      filter: brightness(0) invert(1) drop-shadow(0 6px 20px rgba(0,0,0,0.18));
-    }
-
-    .splash-name {
-      font-family: 'Syne', sans-serif;
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--white);
-      letter-spacing: -0.5px;
-    }
-
-    @keyframes splashIn {
-      from { opacity: 0; transform: scale(0.85); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-
-    @keyframes splashOut {
-      from { opacity: 1; pointer-events: all; }
-      to   { opacity: 0; pointer-events: none; }
-    }
-
-    /* =============================================
-       AUTH PAGE
-    ============================================= */
-    #auth-page {
-      display: flex;
-      min-height: 100vh;
-      opacity: 0;
-      transform: translateY(16px);
-      transition: opacity 0.5s ease, transform 0.5s ease;
-    }
-
-    #auth-page.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* Left decorative panel */
-    .auth-panel {
-      flex: 0 0 38%;
-      background: var(--orange);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 60px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .auth-panel::before,
-    .auth-panel::after {
-      content: '';
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.07);
-    }
-    .auth-panel::before { width: 420px; height: 420px; top: -120px; right: -100px; }
-    .auth-panel::after  { width: 280px; height: 280px; bottom: -80px; left: -60px; }
-
-    .auth-panel-content {
-        position: relative;
-        z-index: 1;
-        max-width: 420px;
-        width: 100%;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 56px;
-    }
-
-    .brand-logo {
-      width: 38px;
-      height: 38px;
-      object-fit: contain;
-      filter: brightness(0) invert(1);
-    }
-
-    .brand-name {
-      font-family: 'Syne', sans-serif;
-      font-size: 22px;
-      font-weight: 800;
-      color: var(--white);
-      letter-spacing: -0.3px;
-    }
-
-    .panel-headline {
-      font-family: 'Syne', sans-serif;
-      font-size: 39px;
-      font-weight: 800;
-      color: var(--white);
-      line-height: 1.3;
-      letter-spacing: 0.5px;
-      margin-bottom: 16px;
-    }
-
-    .panel-sub {
-      font-size: 16px;
-      color: rgba(255,255,255,0.78);
-      line-height: 1.6;
-      margin-bottom: 40px;
-    }
-
-    .panel-dots { display: flex; gap: 8px; }
-    .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.35);
-      transition: var(--transition);
-    }
-    .dot.active { background: var(--white); width: 24px; border-radius: 4px; }
-
-    /* Right form panel */
-    .auth-form-wrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 32px;
-      background: var(--surface);
-      transition: background var(--transition);
-    }
-
-    .auth-tabs {
-      display: flex;
-      gap: 0;
-      background: var(--surface-2);
-      border-radius: 10px;
-      padding: 4px;
-      margin-bottom: 33px;
-      width: 100%;
-      max-width: 400px;
-      transition: background var(--transition);
-    }
-
-    .auth-tab-btn {
-      flex: 1;
-      padding: 8px 0;
-      border: none;
-      background: transparent;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-muted);
-      border-radius: 7px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .auth-tab-btn.active {
-      background: var(--surface);
-      color: var(--text-primary);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    /* Forms */
-    .auth-form {
-      width: 100%;
-      max-width: 400px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .form-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 28px;
-      font-weight: 800;
-      color: var(--text-primary);
-      letter-spacing: -0.4px;
-      margin-bottom: 4px;
-      transition: color var(--transition);
-    }
-
-    .form-sub {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-      transition: color var(--transition);
-    }
-
-    .field-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 6px;
-      margin-top: 10px;
-      display: block;
-      transition: color var(--transition);
-    }
-
-    .input-wrap { position: relative; }
-
-    .input-wrap input {
-      width: 100%;
-      padding: 12px 16px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      color: var(--text-primary);
-      background: var(--input-bg);
-      outline: none;
-      transition: border-color var(--transition), box-shadow var(--transition),
-                  background var(--transition), color var(--transition);
-    }
-
-    .input-wrap input:focus {
-      border-color: var(--orange);
-      box-shadow: 0 0 0 4px rgba(249,115,22,0.12);
-    }
-
-    .input-wrap input.input-error { border-color: #e53e3e; }
-    .input-wrap input::placeholder { color: #C4C4C4; }
-
-    .field-error {
-      font-size: 12px;
-      color: #e53e3e;
-      margin-top: 4px;
-      display: none;
-    }
-    .field-error.show { display: block; }
-
-    .toggle-pw {
-      position: absolute;
-      right: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--grey-400);
-      display: flex;
-      align-items: center;
-      padding: 0;
-      transition: color var(--transition);
-    }
-    .toggle-pw:hover { color: var(--text-primary); }
-    .toggle-pw svg { width: 18px; height: 18px; }
-
-    .form-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 14px 0 24px;
-    }
-
-    .check-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--text-secondary);
-      cursor: pointer;
-    }
-
-    .check-wrap input[type="checkbox"] {
-      accent-color: var(--orange);
-      width: 15px; height: 15px;
-    }
-
-    .link {
-      font-size: 13px;
-      color: var(--orange);
-      text-decoration: none;
-      font-weight: 500;
-      transition: opacity var(--transition);
-    }
-    .link:hover { opacity: 0.75; }
-
-    .btn-auth-primary {
-      width: 100%;
-      padding: 14px;
-      background: var(--orange);
-      color: var(--white);
-      border: none;
-      border-radius: var(--radius);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
-      box-shadow: 0 4px 18px rgba(249,115,22,0.30);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .btn-auth-primary:hover {
-      background: var(--orange-dark);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 24px rgba(249,115,22,0.38);
-    }
-
-    .btn-auth-primary:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .auth-error {
-      background: rgba(229,62,62,0.08);
-      border: 1px solid rgba(229,62,62,0.3);
-      color: #e53e3e;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 13px;
-      margin-bottom: 16px;
-      display: none;
-    }
-    .auth-error.show { display: block; }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 20px 0;
-      color: var(--text-muted);
-      font-size: 13px;
-      transition: color var(--transition);
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-      transition: background var(--transition);
-    }
-
-    .btn-social {
-      width: 100%;
-      padding: 12px;
-      background: var(--surface);
-      color: var(--text-secondary);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: border-color var(--transition), box-shadow var(--transition),
-                  background var(--transition), color var(--transition);
-    }
-
-    .btn-social:hover {
-      border-color: var(--text-muted);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-    }
-
-    .name-row { display: flex; gap: 12px; }
-    .name-row .field-group { flex: 1; }
-
-    .terms-note {
-      font-size: 12px;
-      color: var(--grey-400);
-      text-align: center;
-      margin-top: 16px;
-      line-height: 1.6;
-    }
-    .terms-note a { color: var(--orange); text-decoration: none; }
-
-
-    /* =============================================
-       GLOBAL THEME TOGGLE
-    ============================================= */
-    #global-theme-btn {
-      position: fixed;
-      top: 16px; right: 16px;
-      z-index: 10000;
-      width: 42px; height: 42px;
-      border-radius: 50%;
-      border: 1.5px solid var(--border);
-      background: var(--surface);
-      color: var(--text-secondary);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-      transition: background var(--transition), border-color var(--transition),
-                  color var(--transition), transform 0.15s;
-    }
-    #global-theme-btn:hover {
-      border-color: var(--orange);
-      color: var(--orange);
-      transform: scale(1.08);
-      box-shadow: 0 4px 18px rgba(249,115,22,0.25);
-    }
-    #global-theme-btn svg { width: 18px; height: 18px; }
-
-
-    /* =============================================
-       RESPONSIVE
-    ============================================= */
-    @media (max-width: 768px) {
-      .auth-panel { display: none; }
-      .auth-form-wrap { padding: 40px 24px; }
-      .name-row { flex-direction: column; gap: 0; }
-    }
-
-    .panel-headline {
-      border-left: none !important;
-      padding-left: 0 !important;
-      -webkit-text-fill-color: var(--white) !important;
-      background: none !important;
-      color: var(--white) !important;
-    }
-  </style>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPad — Smart Inventory Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
+    <script src="https://accounts.google.com/gsi/client?hl=en" async defer></script>
+    <script>
+        if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark-mode');
+    </script>
 </head>
+
 <body>
 
-  <!-- Global dark mode toggle -->
-  <button id="global-theme-btn" aria-label="Toggle dark mode">
-    <svg id="g-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-    </svg>
-    <svg id="g-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-      <circle cx="12" cy="12" r="5"/>
-      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-    </svg>
-  </button>
+    <!-- ═══════════════════════════════════════════════════════
+     AUTH VIEWS (No sidebar)
+     ═══════════════════════════════════════════════════════ -->
 
-
-  <!-- =============================================
-       SPLASH SCREEN
-  ============================================= -->
-  <div id="splash">
-    <div class="splash-inner">
-      <img src="logo.png" alt="StockPad Logo" class="splash-logo" />
-      <span class="splash-name">StockPad</span>
-    </div>
-  </div>
-
-
-  <!-- =============================================
-       AUTH PAGE (Login / Signup)
-  ============================================= -->
-  <div id="auth-page" class="hidden">
-
-    <!-- Left panel -->
-<div class="auth-panel">
-  <div class="auth-panel-content">
-    <div class="brand">
-      <img src="logo.png" alt="StockPad Logo" class="brand-logo" />
-      <span class="brand-name">StockPad</span>
-    </div>
-
-<div class="panel-headline-slider">
-    <div class="slide-item slide-active">
-        <h2 class="panel-headline">Track every move.</h2>
-        <p class="panel-sub">Real-time inventory intelligence.</p>
-    </div>
-    <div class="slide-item">
-        <h2 class="panel-headline">Know your stock.</h2>
-        <p class="panel-sub">Instant alerts before it's too late.</p>
-    </div>
-    <div class="slide-item">
-        <h2 class="panel-headline">Nothing gets missed.</h2>
-        <p class="panel-sub">Every IN and OUT logged.</p>
-    </div>
-    <div class="slide-item">
-        <h2 class="panel-headline">Smarter decisions.</h2>
-        <p class="panel-sub">Reports that actually mean something.</p>
-    </div>
-</div>
-
-    <div class="panel-dots" id="sliderDots">
-      <span class="dot active"></span>
-      <span class="dot"></span>
-      <span class="dot"></span>
-      <span class="dot"></span>
-    </div>
-
-  </div>
-</div>
-
-    <!-- Right form panel -->
-    <div class="auth-form-wrap">
-
-      <!-- Tab switcher -->
-      <div class="auth-tabs">
-        <button class="auth-tab-btn active" data-tab="login">Log in</button>
-        <button class="auth-tab-btn"        data-tab="signup">Sign up</button>
-      </div>
-
-      <!-- LOGIN FORM -->
-      <form id="login-form" class="auth-form" autocomplete="off" novalidate>
-        <h1 class="form-title">Welcome back</h1>
-        <p class="form-sub">Enter your credentials to continue.</p>
-
-        <div class="auth-error" id="login-error"></div>
-
-        <label class="field-label" for="login-username">Username</label>
-        <div class="input-wrap">
-          <input type="text" id="login-username" placeholder="email or username" required autocomplete="email or username" />
-        </div>
-        <span class="field-error" id="login-username-error"></span>
-
-        <label class="field-label" for="login-password">Password</label>
-        <div class="input-wrap">
-          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
-          <button type="button" class="toggle-pw" aria-label="Toggle password visibility">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-        </div>
-        <span class="field-error" id="login-password-error"></span>
-
-        <div class="form-meta">
-          <label class="check-wrap">
-            <input type="checkbox" id="login-remember" /> Remember me
-          </label>
-          <a href="#" class="link" id="forgotPasswordLink">Forgot password?</a>
-        </div>
-
-        <button type="submit" class="btn-auth-primary" id="login-btn">
-          <span class="btn-text">Log in</span>
-          <span class="btn-loading hidden"><i class="fas fa-spinner fa-spin"></i> Logging in…</span>
-        </button>
-
-        <div class="divider"><span>or continue with</span></div>
-
-        <div id="g_id_onload"
-          data-client_id="506308055021-hg407bv24ln5kelikrud2k3e9iffha1e.apps.googleusercontent.com"
-          data-callback="handleGoogleLogin"
-          data-auto_prompt="false">
-        </div>
-        <button type="button" class="btn-social" id="googleLoginBtn">
-          <svg viewBox="0 0 24 24" width="18" height="18">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-            Continue with Google
-        </button>
-      </form>
-      <!-- Forgot Password Section -->
-      <div id="forgotPasswordSection" style="display:none;">
-          <h1 class="form-title">Reset password</h1>
-          <p class="form-sub">Enter your username and we'll send you a reset link.</p>
-          <div class="auth-error" id="forgot-error"></div>
-          <div class="auth-success" id="forgot-success" style="display:none;"></div>
-          <label class="field-label" for="forgot-username">Username</label>
-          <div class="input-wrap">
-              <input type="text" id="forgot-username" placeholder="enter your username" required />
-          </div>
-          <button type="button" class="btn-auth-primary" id="forgotSubmitBtn" style="margin-top:24px;">
-              <span class="btn-text">Send reset link</span>
-              <span class="btn-loading hidden"><i class="fas fa-spinner fa-spin"></i> Sending…</span>
-          </button>
-          <button type="button" class="link" id="backToLoginBtn" style="margin-top:16px; background:none; border:none; cursor:pointer; width:100%; text-align:center;">
-              ← Back to login
-          </button>
-      </div>
-
-      <!-- SIGNUP FORM (hidden by default) -->
-      <form id="signup-form" class="auth-form hidden" autocomplete="off" novalidate>
-        <h1 class="form-title">Create account</h1>
-        <p class="form-sub">Get started with StockPad.</p>
-
-        <div class="auth-error" id="signup-error"></div> 
-
-        <div class="name-row">
-          <div class="field-group">
-            <label class="field-label" for="signup-fname">First name</label>
-            <div class="input-wrap">
-              <input type="text" id="signup-fname" placeholder="first name" required />
+    <!-- LOGIN VIEW -->
+    <div id="view-login" class="view-section auth-view">
+        <div class="login-container">
+            <h2 data-i18n="login.title">Stock Pad</h2>
+            <div id="login-error" style="color: #ff4444; margin-bottom: 1rem; text-align: center; display: none;"></div>
+            <div class="input-group">
+                <label for="login-email" data-i18n="login.email">Email</label>
+                <input type="email" id="login-email" placeholder="Enter your email"
+                    data-i18n-placeholder="login.emailPlaceholder" required>
             </div>
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="signup-lname">Last name</label>
-            <div class="input-wrap">
-              <input type="text" id="signup-lname" placeholder="last name" required />
+            <div class="input-group">
+                <label for="login-password" data-i18n="login.password">Password</label>
+                <input type="password" id="login-password" placeholder="Enter your password"
+                    data-i18n-placeholder="login.passwordPlaceholder" required>
             </div>
-          </div>
-        </div>
-
-        <label class="field-label" for="signup-username">Username</label>
-        <div class="input-wrap">
-          <input type="text" id="signup-username" placeholder="choose a username" required />
-        </div>
-        <span class="field-error" id="signup-username-error"></span>
-
-        <label class="field-label" for="signup-password">Password</label>
-        <div class="input-wrap">
-          <input type="password" id="signup-password" placeholder="Min. 8 characters" required />
-          <button type="button" class="toggle-pw" aria-label="Toggle password visibility">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-        </div>
-        <span class="field-error" id="signup-password-error"></span>
-
-        <label class="field-label" for="signup-password2">Confirm Password</label>
-        <div class="input-wrap">
-          <input type="password" id="signup-password2" placeholder="Repeat your password" required />
-          <button type="button" class="toggle-pw" aria-label="Toggle password visibility">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-        </div>
-        <span class="field-error" id="signup-password2-error"></span>
-
-        <button type="submit" class="btn-auth-primary" id="signup-btn" style="margin-top:24px;">
-          <span class="btn-text">Create account</span>
-          <span class="btn-loading hidden"><i class="fas fa-spinner fa-spin"></i> Creating…</span>
-        </button>
-
-        <p class="terms-note">
-          By signing up you agree to our
-          <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
-        </p>
-      </form>
-
-    </div><!-- /auth-form-wrap -->
-  </div><!-- /auth-page -->
-
-
-  <!-- =============================================
-       MAIN APP (hidden until login)
-  ============================================= -->
-  <div id="appWrapper" class="app-wrapper hidden">
-
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div>
-        <div class="logo">
-          StockPad
-          <span>smart inventory management</span>
-        </div>
-        <nav class="nav-links">
-          <div class="nav-item active" data-page="dashboard">
-            <i class="fas fa-chart-pie"></i>
-            <span>Dashboard</span>
-          </div>
-          <div class="nav-item" data-page="activity">
-            <i class="fas fa-exchange-alt"></i>
-            <span>Activity / Add New</span>
-          </div>
-          <div class="nav-item" data-page="reports">
-            <i class="fas fa-file-alt"></i>
-            <span>Reports</span>
-          </div>
-          <div class="nav-item" data-page="settings">
-            <i class="fas fa-cog"></i>
-            <span>Settings</span>
-          </div>
-        </nav>
-      </div>
-      <div class="logout">
-        <div class="nav-item" id="logoutBtn">
-          <i class="fas fa-sign-out-alt"></i>
-          <span>Logout</span>
-        </div>
-        <div class="nav-item" id="globalNotificationBtn">
-          <i class="fas fa-bell"></i>
-          <span>Notifications</span>
-          <div class="notification-indicator" id="globalNotificationIndicator" style="display: none;">
-            <span class="notification-badge">0</span>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <main class="main-content">
-
-      <!-- DASHBOARD PAGE -->
-      <div id="dashboardPage" class="page active-page">
-        <header class="page-header">
-          <div>
-            <h2>Inventory Dashboard</h2>
-          </div>
-        </header>
-        <div class="search-container">
-          <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" id="materialSearch" placeholder="Search materials by name..." autocomplete="off" />
-            <button type="button" id="clearSearch" class="clear-search-btn" style="display: none;">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="search-results-info" id="searchResultsInfo" style="display: none;">
-            <span id="searchResultsCount"></span>
-          </div>
-        </div>
-        <div id="dashboardMaterials" class="dashboard-materials"></div>
-      </div>
-
-      <!-- ACTIVITY PAGE -->
-      <div id="activityPage" class="page">
-        <h2>Activity & Add New Material</h2>
-
-        <div class="transaction-card">
-          <h3>📦 Record Stock Movement</h3>
-          <div class="card">
-            <form id="transactionForm">
-              <div class="form-row">
-                <div class="form-group type-selector">
-                  <label>Transaction Type</label>
-                  <div class="type-buttons">
-                    <button type="button" id="selectInBtn" class="type-btn active-type" data-type="in">
-                      <i class="fas fa-plus-circle"></i> Add Stock (IN)
-                    </button>
-                    <button type="button" id="selectOutBtn" class="type-btn" data-type="out">
-                      <i class="fas fa-minus-circle"></i> Remove Stock (OUT)
-                    </button>
-                  </div>
-                  <input type="hidden" id="transactionType" value="in" />
-                </div>
-                <div class="form-group">
-                  <label>Material</label>
-                  <select id="transactionMaterial" required>
-                    <option value="">-- Choose material --</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Quantity</label>
-                  <input type="number" id="transactionQty" placeholder="Quantity" step="0.1" min="0.1" required />
-                </div>
-                <div class="form-group">
-                  <label>Notes (optional)</label>
-                  <input type="text" id="transactionNotes" placeholder="e.g., supplier or reason" />
-                </div>
-              </div>
-              <div class="form-actions">
-                <button type="submit" class="btn-submit" id="submitTransaction">
-                  <i class="fas fa-check-circle"></i> Execute Transaction
+            <div class="remember-forgot">
+                <label><input type="checkbox" id="rememberMe"><span data-i18n="login.remember"> Remember
+                        Me</span></label>
+                <a href="#" onclick="navigateTo('forgot'); return false;" data-i18n="login.forgot">Forgot Password?</a>
+            </div>
+            <button class="auth-btn" id="loginBtn" data-i18n="login.btn">Login</button>
+            <div class="auth-divider"><span>OR</span></div>
+            <div id="googleLoginBtnContainer" style="display: flex; justify-content: center; margin-top: 10px;"></div>
+            <div class="signup">
+                <span data-i18n="login.noAccount">Don't have an account? </span><a href="#"
+                    onclick="navigateTo('signup'); return false;" data-i18n="login.signup">SignUp</a>
+            </div>
+            <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                <button onclick="i18n.toggle()"
+                    style="background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 0.4rem; transition: color 0.2s;">
+                    <i class="fas fa-globe"></i> <span data-i18n="sidebar.language">🌐 عربي</span>
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <div class="add-material-section">
-          <h3>➕ Add New Material</h3>
-          <div class="card">
-            <form id="addMaterialForm">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Material Name</label>
-                  <input type="text" id="materialName" placeholder="e.g., Cement" required />
-                </div>
-                <div class="form-group">
-                  <label>Initial Quantity</label>
-                  <input type="number" id="initialQty" step="0.1" placeholder="0" required />
-                </div>
-                <div class="form-group">
-                  <label>Max Quantity</label>
-                  <input type="number" id="maxQty" step="0.1" placeholder="e.g. 500" required />
-                </div>
-                <div class="form-group">
-                  <label>Unit</label>
-                  <select id="materialUnit">
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="L">Liter (L)</option>
-                    <option value="pcs">Pieces (pcs)</option>
-                    <option value="m">Meter (m)</option>
-                  </select>
-                </div>
-                  <div class="form-group">
-                    <label>Low Stock Threshold (%)</label>
-                    <input type="number" id="lowStockThreshold" step="1" placeholder="Alert when below this %" min="0" max="100" />
-                  </div>
-                </div>
-              <button type="submit" class="btn-primary">💾 Save New Material</button>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <!-- REPORTS PAGE -->
-      <div id="reportsPage" class="page">
-        <h2>Reports</h2>
-        <div class="filters card">
-          <div class="filter-group">
-            <label>Material:</label>
-            <select id="reportMaterial">
-              <option value="all">All Materials</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Type:</label>
-            <select id="reportType">
-              <option value="both">IN &amp; OUT</option>
-              <option value="in">IN only</option>
-              <option value="out">OUT only</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Period:</label>
-            <select id="reportPeriod">
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="specific">Specific Date</option>
-              <option value="all">All Time</option>
-            </select>
-          </div>
-          <div class="filter-group" id="specificDateGroup" style="display: none;">
-            <label>Select Date:</label>
-            <input type="date" id="specificDate" />
-          </div>
-          <button id="generateReportBtn" class="btn-primary">Generate Report</button>
-        </div>
-        <div class="card" id="reportContainer" style="display: none;">
-          <div id="reportSummary" class="report-summary"></div>
-          <div id="reportTable" class="table-responsive"></div>
-        </div>
-      </div>
-
-      <!-- SETTINGS PAGE -->
-      <div id="settingsPage" class="page">
-        <h2>Settings</h2>
-
-        <div class="card">
-        <h4>👤 Account</h4>
-
-        <!-- Profile Picture -->
-        <div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:1.5rem;">
-          <div style="position:relative;">
-            <img id="profilePicPreview" src="" alt="Profile"
-              style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid var(--burnt-orange); display:none;" />
-            <div id="profilePicFallback"
-              style="width:80px; height:80px; border-radius:50%; background:var(--burnt-orange); display:flex; align-items:center; justify-content:center; font-size:2rem; color:white; font-weight:700;">
-              <i class="fas fa-user"></i>
             </div>
-          </div>
-          <div>
-            <label for="profilePicInput" class="btn-outline" style="cursor:pointer; display:inline-block; margin-top:0; padding:0.5rem 1rem; font-size:0.8rem;">
-              📷 Upload Photo
-            </label>
-            <input type="file" id="profilePicInput" accept="image/*" style="display:none;" />
-            <p style="font-size:0.75rem; color:var(--dark-wood-secondary); margin-top:0.25rem;">JPG, PNG up to 2MB</p>
-          </div>
         </div>
-
-        <!-- Editable Fields -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
-          <div class="form-group">
-            <label>First Name</label>
-            <input type="text" id="editFirstName" placeholder="First name" />
-          </div>
-          <div class="form-group">
-            <label>Last Name</label>
-            <input type="text" id="editLastName" placeholder="Last name" />
-          </div>
-        </div>
-        <div class="form-group" style="margin-bottom:1rem;">
-          <label>Username</label>
-          <input type="text" id="editUsername" placeholder="Username" />
-        </div>
-        <div class="form-group" style="margin-bottom:1.5rem;">
-          <label>Email <span class="readonly-badge">read-only</span></label>
-          <input type="text" id="editEmail" disabled style="opacity:0.6; cursor:not-allowed;" />
-        </div>
-        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-          <button class="btn-primary" id="saveProfileBtn">💾 Save Changes</button>
-          <button class="btn-outline" id="changePasswordBtn">🔑 Change Password</button>
-        </div>
-        <p id="profileSaveMsg" style="margin-top:0.75rem; font-size:0.85rem; display:none;"></p>
-      </div>
-
-      <!-- Change Password Modal -->
-      <div id="changePasswordModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:5000; align-items:center; justify-content:center;">
-        <div style="background:var(--card-bg); border-radius:20px; padding:2rem; width:100%; max-width:420px; margin:1rem; border:1px solid var(--beige-border); box-shadow:var(--shadow-xl);">
-          <h3 style="margin-bottom:1.5rem;">🔑 Change Password</h3>
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label>Current Password</label>
-            <input type="password" id="oldPassword" placeholder="Enter current password" />
-          </div>
-          <div class="form-group" style="margin-bottom:1rem;">
-            <label>New Password</label>
-            <input type="password" id="newPassword" placeholder="Min. 8 characters" />
-          </div>
-          <div class="form-group" style="margin-bottom:1.5rem;">
-            <label>Confirm New Password</label>
-            <input type="password" id="confirmPassword" placeholder="Repeat new password" />
-          </div>
-          <p id="passwordChangeError" style="color:var(--error-red); font-size:0.85rem; margin-bottom:1rem; display:none;"></p>
-          <div style="display:flex; gap:1rem;">
-            <button class="btn-primary" id="submitPasswordBtn">Update Password</button>
-            <button class="btn-outline" id="closePasswordModal">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-        <div class="card">
-          <h4>⚙️ System</h4>
-          <div class="setting-item">
-            <label>Default Unit:</label>
-            <select id="defaultUnit">
-              <option value="kg">kg</option>
-              <option value="L">L</option>
-              <option value="pcs">pcs</option>
-            </select>
-          </div>
-          <div class="setting-item">
-            <label>Date Format:</label>
-            <select id="dateFormat">
-              <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-              <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card">
-          <h4>🎨 Appearance</h4>
-          <div class="setting-item">
-            <label>Dark / Light Mode:</label>
-            <button id="darkModeToggle" class="btn-outline">🌓 Toggle Dark Mode</button>
-          </div>
-        </div>
-      </div>
-
-    </main>
-  </div><!-- /appWrapper -->
-
-
-  <!-- NOTIFICATION CONTAINER -->
-  <div id="notificationContainer" class="notification-container"></div>
-
-  <!-- NOTIFICATION CENTER -->
-  <div id="notificationCenter" class="notification-center" style="display: none;">
-    <div class="notification-header">
-      <h3><i class="fas fa-bell"></i> Notifications</h3>
-      <button id="clearAllNotifications" class="clear-all-btn">Clear All</button>
     </div>
-    <div class="notification-tabs">
-      <button class="tab-btn active" data-tab="all">All</button>
-      <button class="tab-btn" data-tab="alerts">Alerts</button>
-      <button class="tab-btn" data-tab="reminders">Reminders</button>
-      <button class="tab-btn" data-tab="requests">Requests</button>
+
+    <!-- SIGNUP VIEW -->
+    <div id="view-signup" class="view-section auth-view">
+        <div class="signup-container">
+            <h2 data-i18n="signup.title">Stock Pad - Sign Up</h2>
+            <div class="input-group">
+                <label for="signup-username" data-i18n="signup.username">Username</label>
+                <input type="text" id="signup-username" placeholder="Pick a username"
+                    data-i18n-placeholder="signup.usernamePlaceholder">
+            </div>
+            <div class="input-group">
+                <label for="signup-email" data-i18n="login.email">Email</label>
+                <input type="email" id="signup-email" placeholder="Enter your email"
+                    data-i18n-placeholder="login.emailPlaceholder" required>
+            </div>
+            <div class="input-group">
+                <label for="signup-role" data-i18n="signup.role">Role</label>
+                <select id="signup-role"
+                    style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #ddd; background: #fff; color: #333;">
+                    <option value="engineer" data-i18n="signup.engineer">Site Engineer</option>
+                    <option value="warehouse" data-i18n="signup.warehouse">Warehouse Manager</option>
+                    <option value="admin" data-i18n="signup.admin">Admin</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="signup-password" data-i18n="login.password">Password</label>
+                <input type="password" id="signup-password" placeholder="Enter your password"
+                    data-i18n-placeholder="login.passwordPlaceholder" required>
+            </div>
+            <div class="input-group">
+                <label for="signup-confirm" data-i18n="signup.confirmPassword">Confirm Password</label>
+                <input type="password" id="signup-confirm" placeholder="Confirm your password"
+                    data-i18n-placeholder="signup.confirmPlaceholder" required>
+            </div>
+            <button class="auth-btn" id="signupBtn" data-i18n="signup.btn">Sign Up</button>
+            <div class="auth-divider"><span>OR</span></div>
+            <div id="googleSignupBtnContainer" style="display: flex; justify-content: center; margin-top: 10px;"></div>
+            <div class="login-link">
+                <span data-i18n="signup.hasAccount">Already have an account? </span><a href="#"
+                    onclick="navigateTo('login'); return false;" data-i18n="signup.login">Login</a>
+            </div>
+            <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                <button onclick="i18n.toggle()"
+                    style="background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 0.4rem; transition: color 0.2s;">
+                    <i class="fas fa-globe"></i> <span data-i18n="sidebar.language">🌐 عربي</span>
+                </button>
+            </div>
+        </div>
     </div>
-    <div class="notification-list" id="notificationList"></div>
-    <div class="notification-empty" id="notificationEmpty" style="display: none;">
-      <i class="fas fa-bell-slash"></i>
-      <p>No notifications</p>
+
+    <!-- FORGOT PASSWORD VIEW -->
+    <div id="view-forgot" class="view-section auth-view">
+        <div class="forgot-container">
+            <h2 data-i18n="forgot.title">Reset Password</h2>
+            <p data-i18n="forgot.subtitle">Enter your email to receive a reset link</p>
+            <div class="input-group">
+                <input type="email" id="forgot-email" placeholder="Enter your email"
+                    data-i18n-placeholder="forgot.emailPlaceholder">
+            </div>
+            <button class="auth-btn" id="forgotBtn" data-i18n="forgot.btn">Send Reset Link</button>
+            <div class="back-login">
+                <a href="#" onclick="navigateTo('login'); return false;" data-i18n="forgot.back">Back to Login</a>
+            </div>
+            <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
+                <button onclick="i18n.toggle()"
+                    style="background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 0.4rem; transition: color 0.2s;">
+                    <i class="fas fa-globe"></i> <span data-i18n="sidebar.language">🌐 عربي</span>
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 
+    <!-- RESET PASSWORD VIEW -->
+    <div id="view-reset" class="view-section auth-view">
+        <div class="forgot-container">
+            <h2>Set New Password</h2>
+            <p>Enter your new password below</p>
+            <div class="input-group">
+                <input type="password" id="reset-newPassword" placeholder="New Password">
+            </div>
+            <div class="input-group">
+                <input type="password" id="reset-confirmPassword" placeholder="Confirm New Password">
+            </div>
+            <button class="auth-btn" id="resetBtn">Reset Password</button>
+            <div class="back-login">
+                <a href="#" onclick="navigateTo('login'); return false;">Back to Login</a>
+            </div>
+        </div>
+    </div>
 
-  <!-- =============================================
-       SCRIPTS
-  ============================================= -->
-  <script src="api-service.js"></script>
-  <script src="script.js"></script>
+    <!-- ═══════════════════════════════════════════════════════
+     APP WRAPPER (Sidebar + Content Views)
+     ═══════════════════════════════════════════════════════ -->
+    <div id="app-wrapper">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">StockPad</h1>
+                <p class="tagline" data-i18n="sidebar.tagline">smart inventory management</p>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item" data-view="inventory" onclick="navigateTo('inventory'); return false;">
+                    <i class="fas fa-th-large"></i>
+                    <span data-i18n="sidebar.inventory">Inventory</span>
+                </a>
+                <a href="#" class="nav-item" data-view="chatbot" onclick="navigateTo('chatbot'); return false;">
+                    <i class="fas fa-comments"></i>
+                    <span data-i18n="sidebar.chatbot">Chat Bot</span>
+                </a>
+                <a href="#" class="nav-item" data-view="requests" onclick="navigateTo('requests'); return false;">
+                    <i class="fas fa-inbox"></i>
+                    <span data-i18n="sidebar.requests">Requests</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="themeToggle" class="nav-item"
+                    style="background:none;border:none;width:100%;text-align:left;">
+                    <i class="fas fa-moon"></i>
+                    <span data-i18n="sidebar.darkMode">Dark Mode</span>
+                </button>
+                <button onclick="i18n.toggle()" class="nav-item lang-toggle-btn">
+                    <i class="fas fa-language"></i>
+                    <span data-i18n="sidebar.language">🌐 عربي</span>
+                </button>
+                <a href="#" class="nav-item" data-view="profile" onclick="navigateTo('profile'); return false;">
+                    <i class="fas fa-user"></i>
+                    <span data-i18n="sidebar.account">Account / Profile</span>
+                </a>
+                <a href="#" class="nav-item" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span data-i18n="sidebar.logout">Logout</span>
+                </a>
+            </div>
+        </aside>
 
-  <script>
-    /* ──────────────────────────────────────────
-       THEME TOGGLE
-    ────────────────────────────────────────── */
-    const html      = document.documentElement;
-    const globalBtn = document.getElementById('global-theme-btn');
-    const gIconSun  = document.getElementById('g-icon-sun');
-    const gIconMoon = document.getElementById('g-icon-moon');
+        <!-- ── INVENTORY VIEW ───────────────────────────────── -->
+        <main class="main-content" id="view-inventory" style="display:none;">
+            <header class="page-header" style="position:relative;">
+                <div class="container">
+                    <div>
+                        <h1 class="page-title">
+                            <i class="fas fa-warehouse"></i>
+                            <span data-i18n="inv.title">Raw Materials Inventory</span>
+                        </h1>
+                        <p class="page-subtitle" data-i18n="inv.subtitle">Browse and request available materials</p>
+                    </div>
+                </div>
+                <div style="position:absolute;top:50%;right:2rem;transform:translateY(-50%);">
+                    <div id="inv-notifBell" title="Notifications"
+                        style="background:var(--bg-card);border:1px solid var(--border-color);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.05rem;color:var(--text-secondary);transition:all 0.2s;position:relative;">
+                        <i class="fas fa-bell"></i>
+                        <span id="inv-notifBadge"
+                            style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:18px;height:18px;font-size:0.65rem;font-weight:700;display:none;align-items:center;justify-content:center;"></span>
+                    </div>
+                    <div id="inv-notifPanel"
+                        style="position:absolute;right:0;top:calc(100% + 8px);width:320px;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;box-shadow:var(--shadow-md);display:none;overflow:hidden;">
+                        <div
+                            style="padding:0.9rem 1.2rem;font-weight:700;font-size:0.9rem;border-bottom:1px solid var(--border-color);">
+                            <i class="fas fa-bell"
+                                style="color:var(--accent-color);margin-right:0.4rem"></i>Notifications
+                        </div>
+                        <div id="inv-notifList" style="max-height:300px;overflow-y:auto;">
+                            <div style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">No
+                                notifications yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <section class="search-section">
+                <div class="container">
+                    <div class="search-container" style="margin-bottom: 0;">
+                        <div class="search-wrapper">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" class="search-input" id="inventorySearch"
+                                placeholder="Search inventory items..." autocomplete="off">
+                            <button class="clear-btn" id="clearSearchBtn" style="display: none;"><i
+                                    class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="categories-section">
+                <div class="container">
+                    <div class="categories-wrapper">
+                        <button class="category-chip active" data-category="all"><i class="fas fa-th-large"></i><span
+                                data-i18n="inv.all">All Items</span></button>
+                        <button class="category-chip" data-category="building"><i class="fas fa-building"></i><span
+                                data-i18n="inv.building">Building Materials</span></button>
+                        <button class="category-chip" data-category="steel"><i class="fas fa-wrench"></i><span
+                                data-i18n="inv.steel">Steel & Metal</span></button>
+                        <button class="category-chip" data-category="paint"><i class="fas fa-paint-roller"></i><span
+                                data-i18n="inv.paint">Paints</span></button>
+                        <button class="category-chip" data-category="finishing"><i class="fas fa-hammer"></i><span
+                                data-i18n="inv.finishing">Finishing</span></button>
+                        <button class="category-chip" data-category="plumbing"><i class="fas fa-faucet"></i><span
+                                data-i18n="inv.plumbing">Plumbing</span></button>
+                        <button class="category-chip" data-category="electrical"><i class="fas fa-bolt"></i><span
+                                data-i18n="inv.electrical">Electrical</span></button>
+                    </div>
+                </div>
+            </section>
+            <section class="products-section">
+                <div class="container">
+                    <div class="products-grid" id="productsGrid"></div>
+                </div>
+            </section>
 
-    function applyTheme(theme) {
-      html.setAttribute('data-theme', theme);
-      localStorage.setItem('sp_theme', theme);
-      gIconSun.style.display  = theme === 'dark' ? 'block' : 'none';
-      gIconMoon.style.display = theme === 'dark' ? 'none'  : 'block';
-    }
+            <!-- Request Modal (Inventory) -->
+            <div id="requestModal" class="modal"
+                style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:10000;justify-content:center;align-items:center;">
+                <div class="modal-content"
+                    style="background:var(--bg-card);padding:2.5rem;border-radius:16px;max-width:450px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.3);border:1px solid var(--border-color);animation:modalSlideUp 0.3s ease-out;">
+                    <div class="modal-header"
+                        style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;">
+                        <h3 style="margin:0;color:var(--text-primary);font-size:1.5rem;">Request Material</h3>
+                        <button onclick="closeRequestModal()"
+                            style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--text-muted);">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom:1.5rem;">
+                            <label
+                                style="display:block;font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem;">Material</label>
+                            <div id="modalMaterialName"
+                                style="font-size:1.1rem;font-weight:700;color:var(--accent-color);"></div>
+                        </div>
+                        <div style="margin-bottom:1.5rem;">
+                            <label
+                                style="display:block;font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem;">Quantity
+                                Needed</label>
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <input type="number" id="modalQtyInput" placeholder="1" step="1"
+                                    style="flex:1;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);font-size:1rem;outline:none;">
+                                <span id="modalUnitText"
+                                    style="font-weight:600;color:var(--text-muted);min-width:60px;">Bags</span>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:2rem;">
+                            <label
+                                style="display:block;font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.5rem;">Justification
+                                / Note (Optional)</label>
+                            <textarea id="modalNotesInput" placeholder="Reason for request..."
+                                style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);font-size:1rem;outline:none;resize:vertical;"
+                                rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="display:flex;gap:12px;justify-content:flex-end;">
+                        <button onclick="closeRequestModal()"
+                            style="padding:0.8rem 1.5rem;border-radius:10px;border:none;background:var(--badge-bg);color:var(--badge-text);font-weight:600;cursor:pointer;">Cancel</button>
+                        <button id="modalSubmitBtn"
+                            style="padding:0.8rem 2rem;border-radius:10px;border:none;background:var(--accent-color);color:white;font-weight:700;cursor:pointer;transition:transform 0.2s;">Submit
+                            Request</button>
+                    </div>
+                </div>
+            </div>
+        </main>
 
-    const savedTheme = localStorage.getItem('sp_theme');
-    const osDark     = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    applyTheme(savedTheme || (osDark ? 'dark' : 'light'));
+        <!-- ── CHATBOT VIEW ─────────────────────────────────── -->
+        <main class="main-content" id="view-chatbot" style="display:none;">
+            <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h2 data-i18n="chat.title">Inventory Assistant Chat Bot</h2>
+                <div class="header-actions">
+                    <div style="position:relative;">
+                        <div id="chat-notifBell" title="Notifications"
+                            style="background:var(--bg-card);border:1px solid var(--border-color);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.05rem;color:var(--text-secondary);transition:all 0.2s;flex-shrink:0;">
+                            <i class="fas fa-bell"></i>
+                            <span id="chat-notifBadge"
+                                style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:18px;height:18px;font-size:0.65rem;font-weight:700;display:none;align-items:center;justify-content:center;"></span>
+                        </div>
+                        <div id="chat-notifPanel"
+                            style="position:absolute;right:0;top:calc(100% + 8px);width:320px;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;box-shadow:var(--shadow-md);display:none;overflow:hidden;">
+                            <div
+                                style="padding:0.9rem 1.2rem;font-weight:700;font-size:0.9rem;border-bottom:1px solid var(--border-color);">
+                                <i class="fas fa-bell"
+                                    style="color:var(--accent-color);margin-right:0.4rem"></i>Notifications
+                            </div>
+                            <div id="chat-notifList" style="max-height:300px;overflow-y:auto;">
+                                <div
+                                    style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+                                    No notifications yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="newChatBtn" class="new-chat-btn"><i class="fas fa-plus"></i><span
+                            data-i18n="chat.newChat">New Chat</span></button>
+                    <button id="showHistoryBtn" class="history-btn"><i class="fas fa-history"></i><span
+                            data-i18n="chat.history">History</span></button>
+                </div>
+            </div>
+            <div id="historyOverlay" class="history-overlay"></div>
+            <div id="historyPanel" class="history-panel">
+                <div class="history-header">
+                    <h3 data-i18n="chat.historyTitle">Chat History</h3>
+                    <i class="fas fa-times close-history" id="closeHistory"></i>
+                </div>
+                <div id="historyList" class="history-list"></div>
+            </div>
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="quick-questions">
+                    <button class="quick-btn" onclick="askQuestion(i18n.t('chat.outOfStock'))"><i
+                            class="fas fa-exclamation-triangle"></i><span data-i18n="chat.outOfStock">What's out of
+                            stock?</span></button>
+                    <button class="quick-btn" onclick="askQuestion(i18n.t('chat.lowStock'))"><i
+                            class="fas fa-chart-line"></i><span data-i18n="chat.lowStock">Low stock
+                            items</span></button>
+                    <button class="quick-btn" onclick="askQuestion(i18n.t('chat.totalValue'))"><i
+                            class="fas fa-dollar-sign"></i><span data-i18n="chat.totalValue">Total inventory
+                            value</span></button>
+                </div>
+                <div class="chat-input-area">
+                    <div id="filePreview" class="file-preview-container" style="display: none;"></div>
+                    <div class="input-wrapper">
+                        <button class="attach-btn" id="attachBtn" title="Attach Files"><i
+                                class="fas fa-paperclip"></i></button>
+                        <input type="file" id="fileInput" style="display: none;" multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*">
+                        <input type="text" id="chatInput" class="chat-input"
+                            placeholder="Ask about materials, stock levels, or inventory..."
+                            data-i18n-placeholder="chat.placeholder" autocomplete="off">
+                        <button class="send-btn" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+        </main>
 
-    globalBtn.addEventListener('click', () => {
-      applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-    });
+        <!-- ── REQUESTS VIEW ────────────────────────────────── -->
+        <main class="main-content" id="view-requests" style="display:none;">
+            <div class="page-header"
+                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+                <h2 data-i18n="req.title">Material Requests</h2>
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                    <div style="position:relative;">
+                        <div id="req-notifBell" title="Notifications"
+                            style="background:var(--bg-card);border:1px solid var(--border-color);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.05rem;color:var(--text-secondary);transition:all 0.2s;">
+                            <i class="fas fa-bell"></i>
+                            <span id="req-notifBadge"
+                                style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:18px;height:18px;font-size:0.65rem;font-weight:700;display:none;align-items:center;justify-content:center;"></span>
+                        </div>
+                        <div id="req-notifPanel"
+                            style="position:absolute;right:0;top:calc(100% + 8px);width:320px;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;box-shadow:var(--shadow-md);display:none;overflow:hidden;">
+                            <div
+                                style="padding:0.9rem 1.2rem;font-weight:700;font-size:0.9rem;border-bottom:1px solid var(--border-color);">
+                                <i class="fas fa-bell"
+                                    style="color:var(--accent-color);margin-right:0.4rem"></i>Notifications
+                            </div>
+                            <div id="req-notifList" style="max-height:300px;overflow-y:auto;">
+                                <div
+                                    style="padding:1.5rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+                                    No notifications yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="exportRequestsPDF()"
+                        style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.55rem 1rem;border-radius:10px;border:1px solid rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);color:#ef4444;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;"
+                        onmouseover="this.style.background='#ef4444';this.style.color='white'"
+                        onmouseout="this.style.background='rgba(239,68,68,0.08)';this.style.color='#ef4444'"><i
+                            class="fas fa-file-pdf"></i> PDF</button>
+                    <button onclick="exportRequestsExcel()"
+                        style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.55rem 1rem;border-radius:10px;border:1px solid rgba(34,197,94,0.25);background:rgba(34,197,94,0.08);color:#22c55e;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;"
+                        onmouseover="this.style.background='#22c55e';this.style.color='white'"
+                        onmouseout="this.style.background='rgba(34,197,94,0.08)';this.style.color='#22c55e'"><i
+                            class="fas fa-file-excel"></i> Excel</button>
+                    <button class="btn-primary" onclick="openNewRequestModal()"><i class="fas fa-plus"></i><span
+                            data-i18n="req.newRequest">New Request</span></button>
+                </div>
+            </div>
+            <div class="requests-list" id="requestsList"></div>
 
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-      if (!localStorage.getItem('sp_theme')) applyTheme(e.matches ? 'dark' : 'light');
-    });
+            <!-- New Request Modal -->
+            <div id="newRequestModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Submit New Request</h3><button class="close-btn" onclick="closeNewRequestModal()"><i
+                                class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group"><label><span data-i18n="req.selectMaterial">Select Material</span> <span
+                                    style="color:red">*</span></label><select id="reqMaterial"
+                                class="form-input"></select></div>
+                        <div class="form-group"><label for="reqQuantity">Quantity Needed <span
+                                    style="color:red">*</span></label>
+                            <div style="display:flex;gap:10px;align-items:center;"><input type="number" id="reqQuantity"
+                                    class="form-input" placeholder="1" step="1" style="flex:1;"><span id="unitDisplay"
+                                    style="font-weight:600;color:var(--text-secondary);min-width:50px;">-</span></div>
+                        </div>
+                        <div class="form-group"><label data-i18n="req.notes">Justification / Notes
+                                (Optional)</label><textarea id="reqNotes" class="form-input" rows="3"
+                                data-i18n-placeholder="req.notesPlaceholder"
+                                placeholder="e.g. For maintenance in Building C"></textarea></div>
+                    </div>
+                    <div class="modal-footer"><button class="btn-secondary" onclick="closeNewRequestModal()"
+                            data-i18n="req.discard">Discard</button><button class="btn-primary"
+                            onclick="submitRequest()"><i class="fas fa-paper-plane"></i> <span
+                                data-i18n="req.submit">Submit</span></button></div>
+                </div>
+            </div>
+            <!-- Rejection Modal -->
+            <div id="rejectionModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Reject Request</h3><button class="close-btn" onclick="closeRejectionModal()"><i
+                                class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <p id="rejectionTarget" style="color:var(--text-secondary);margin-bottom:1rem;font-weight:600;">
+                        </p>
+                        <div class="form-group"><label for="rejectReason">Reason for Rejection <span
+                                    style="color:red">*</span></label><textarea id="rejectReason" class="form-input"
+                                rows="3" placeholder="Explain why this request is being rejected..."></textarea></div>
+                    </div>
+                    <div class="modal-footer"><button class="btn-secondary"
+                            onclick="closeRejectionModal()">Cancel</button><button class="btn-primary"
+                            style="background-color:#ef4444;" onclick="submitRejection()">Reject Request</button></div>
+                </div>
+            </div>
+            <!-- Edit Request Modal -->
+            <div id="editModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Request</h3><button class="close-btn" onclick="closeEditModal()"><i
+                                class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group"><label>Material</label>
+                            <p id="editMaterialName" style="font-weight:700;color:var(--accent-color);"></p>
+                        </div>
+                        <div class="form-group"><label>Quantity Needed <span style="color:red">*</span></label><input
+                                type="number" id="editQuantity" class="form-input" step="1"></div>
+                        <div class="form-group"><label>Justification / Notes</label><textarea id="editNotes"
+                                class="form-input" rows="3"></textarea></div>
+                    </div>
+                    <div class="modal-footer"><button class="btn-secondary"
+                            onclick="closeEditModal()">Cancel</button><button class="btn-primary"
+                            onclick="updateRequest()">Save Changes</button></div>
+                </div>
+            </div>
+        </main>
 
+        <!-- ── ACCOUNT PROFILE VIEW ─────────────────────────── -->
+        <main class="main-content" id="view-profile" style="display:none;">
+            <div class="profile-container">
+                <div class="profile-header">
+                    <div class="profile-cover"></div>
+                    <div class="profile-info-header">
+                        <div class="profile-avatar" onclick="document.getElementById('avatarInput').click()"
+                            style="cursor:pointer;position:relative;">
+                            <img id="avatarImage" src="" alt=""
+                                style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:none;">
+                            <i id="avatarIcon" class="fas fa-user"></i>
+                            <div class="avatar-edit-overlay"><i class="fas fa-camera"></i></div>
+                        </div>
+                        <input type="file" id="avatarInput" style="display: none;" accept="image/*"
+                            onchange="handleAvatarUpload(event)">
+                        <div class="profile-text">
+                            <h1 id="displayName">User</h1>
+                            <input type="text" id="editName" class="edit-input" style="display: none;">
+                            <p id="displayRole">Role</p>
+                            <select id="editRole" class="edit-input"
+                                style="display: none; padding: 0.4rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-primary); margin-top: 5px;">
+                                <option value="Engineer">Site Engineer</option>
+                                <option value="Warehouse">Warehouse Manager</option>
+                                <option value="Admin">Admin</option>
+                            </select>
+                        </div>
+                        <button class="edit-profile-btn" onclick="toggleEditMode()"><i class="fas fa-pen"></i> <span
+                                id="editBtnText" data-i18n="profile.editBtn">Edit Information</span></button>
+                    </div>
+                </div>
+                <div class="profile-grid">
+                    <div class="profile-card">
+                        <div class="card-header-actions">
+                            <h3><i class="fas fa-id-card"></i> <span data-i18n="profile.personal">Personal
+                                    Information</span></h3><button class="icon-btn" onclick="toggleEditMode()"
+                                title="Edit Information"><i class="fas fa-pen"></i></button>
+                        </div>
+                        <div class="info-group"><label data-i18n="profile.fullName">Full Name</label>
+                            <p id="displayFullName">User</p><input type="text" id="editFullName"
+                                class="edit-input full-width" style="display: none;">
+                        </div>
+                        <div class="info-group"><label data-i18n="profile.email">Email Address</label>
+                            <p id="displayEmail">email@example.com</p><input type="email" id="editEmail"
+                                class="edit-input full-width" style="display: none;">
+                        </div>
+                        <div id="cardSaveContainer" style="display:none;margin-top:1rem;text-align:right;"><button
+                                class="btn-primary" onclick="toggleEditMode()" data-i18n="profile.saveBtn">Save
+                                Changes</button></div>
+                    </div>
+                    <div class="profile-card">
+                        <h3><i class="fas fa-cog"></i> <span data-i18n="profile.settings">Account Settings</span></h3>
+                        <div class="setting-item">
+                            <div class="setting-info"><span data-i18n="profile.emailNotif">Email
+                                    Notifications</span><small data-i18n="profile.emailNotifSub">Receive updates on
+                                    stock levels</small></div><label class="switch"><input type="checkbox" checked><span
+                                    class="slider round"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info"><span data-i18n="profile.twoFactor">Two-Factor
+                                    Authentication</span><small data-i18n="profile.twoFactorSub">Secure your
+                                    account</small></div><label class="switch"><input type="checkbox"><span
+                                    class="slider round"></span></label>
+                        </div>
+                        <div class="setting-actions"><button class="btn-outline" onclick="openPasswordModal()"
+                                data-i18n="profile.changePass">Change Password</button></div>
+                    </div>
+                    <div class="profile-card full-width">
+                        <h3><i class="fas fa-history"></i> <span data-i18n="profile.activity">Recent Activity</span>
+                        </h3>
+                        <div class="activity-list" id="activityList">
+                            <div class="activity-item"><i class="fas fa-spinner fa-spin"></i>
+                                <div>
+                                    <p>Loading activity...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Password Modal -->
+            <div id="passwordModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Change Password</h3><button class="close-btn" onclick="closePasswordModal()"><i
+                                class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group"><label>Current Password</label><input type="password" class="form-input"
+                                placeholder="Enter current password"></div>
+                        <div class="form-group"><label>New Password</label><input type="password" class="form-input"
+                                placeholder="Enter new password"></div>
+                        <div class="form-group"><label>Confirm New Password</label><input type="password"
+                                class="form-input" placeholder="Confirm new password"></div>
+                    </div>
+                    <div class="modal-footer"><button class="btn-secondary"
+                            onclick="closePasswordModal()">Cancel</button><button class="btn-primary"
+                            onclick="savePassword()">Save Changes</button></div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-    /* ──────────────────────────────────────────
-       SPLASH → AUTH
-    ────────────────────────────────────────── */
-    const SPLASH_MS = 2650;
+    <!-- External Libraries -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
-    function showAuthPageInline() {
-        const authPage = document.getElementById('auth-page');
-        authPage.classList.remove('hidden');
-        requestAnimationFrame(() => requestAnimationFrame(() => authPage.classList.add('visible')));
-    }
-
-    document.documentElement.classList.add('splash-active');
-    document.documentElement.style.overflow = 'hidden';
-    document.documentElement.style.scrollbarWidth = 'none';
-
-    setTimeout(() => {
-        document.documentElement.style.overflow = '';
-        document.documentElement.style.scrollbarWidth = '';
-        document.getElementById('splash').style.display = 'none';
-        document.dispatchEvent(new CustomEvent('splashDone'));
-    }, SPLASH_MS);
-
-
-    /* ──────────────────────────────────────────
-       AUTH TABS
-    ────────────────────────────────────────── */
-    document.querySelectorAll('.auth-tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.auth-tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        document.getElementById('login-form').classList.toggle('hidden',  tab !== 'login');
-        document.getElementById('signup-form').classList.toggle('hidden', tab !== 'signup');
-        document.querySelectorAll('.auth-error').forEach(el => el.classList.remove('show'));
-        document.querySelectorAll('.field-error').forEach(el => el.classList.remove('show'));
-      });
-    });
-
-
-    /* ──────────────────────────────────────────
-       PASSWORD VISIBILITY TOGGLE
-    ────────────────────────────────────────── */
-    document.querySelectorAll('.toggle-pw').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const input = btn.closest('.input-wrap').querySelector('input');
-        input.type = input.type === 'password' ? 'text' : 'password';
-      });
-    });
-
-
-    /* ──────────────────────────────────────────
-       LOGIN FORM
-    ────────────────────────────────────────── */
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const username = document.getElementById('login-username').value.trim();
-      const password = document.getElementById('login-password').value;
-      const remember = document.getElementById('login-remember').checked;
-      const errorEl  = document.getElementById('login-error');
-      const btn      = document.getElementById('login-btn');
-
-      errorEl.classList.remove('show');
-      errorEl.style.display = 'none';
-
-      if (!username) {
-        errorEl.textContent = 'Username is required.';
-        errorEl.classList.add('show');
-        errorEl.style.display = 'block';
-        return;
-      }
-      if (password.length < 6) {
-        errorEl.textContent = 'Password must be at least 6 characters.';
-        errorEl.classList.add('show');
-        errorEl.style.display = 'block';
-        return;
-      }
-
-      btn.disabled = true;
-      btn.querySelector('.btn-text').classList.add('hidden');
-      btn.querySelector('.btn-loading').classList.remove('hidden');
-
-      try {
-        await dataManager.login(username, password);
-
-        if (remember) {
-          localStorage.setItem('rememberedUsername', username);
-        } else {
-          localStorage.removeItem('rememberedUsername');
-        }
-
-        document.getElementById('auth-page').classList.add('hidden');
-        document.getElementById('auth-page').classList.remove('visible');
-
-        try {
-          await loadApp();
-        } catch (loadError) {
-          console.error('App load failed after login:', loadError);
-          showAppScreen();
-          renderDashboard();
-          populateMaterialSelects();
-          if (typeof showNotification === 'function') {
-            showNotification('Welcome back!', 'Login successful.', 'success');
-          }
-        }
-
-      } catch (err) {
-        errorEl.textContent = 'Invalid username or password. Please try again.';
-        errorEl.classList.add('show');
-        errorEl.style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.querySelector('.btn-text').classList.remove('hidden');
-        btn.querySelector('.btn-loading').classList.add('hidden');
-      }
-    });
-
-
-    /* ──────────────────────────────────────────
-       SIGNUP FORM
-    ────────────────────────────────────────── */
-    document.getElementById('signup-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const fname     = document.getElementById('signup-fname').value.trim();
-      const lname     = document.getElementById('signup-lname').value.trim();
-      const username  = document.getElementById('signup-username').value.trim();
-      const password  = document.getElementById('signup-password').value;
-      const password2 = document.getElementById('signup-password2').value;
-      const errorEl   = document.getElementById('signup-error');
-      const btn       = document.getElementById('signup-btn');
-
-      errorEl.classList.remove('show');
-
-      if (!username || username.length < 3) {
-        errorEl.textContent = 'Username must be at least 3 characters.';
-        errorEl.classList.add('show');
-        return;
-      }
-      if (password.length < 8) {
-        errorEl.textContent = 'Password must be at least 8 characters.';
-        errorEl.classList.add('show');
-        return;
-      }
-      if (password !== password2) {
-        errorEl.textContent = 'Passwords do not match.';
-        errorEl.classList.add('show');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.querySelector('.btn-text').classList.add('hidden');
-      btn.querySelector('.btn-loading').classList.remove('hidden');
-
-      try {
-        await AuthService.register({
-          first_name: fname,
-          last_name: lname,
-          username,
-          password,
-          password2
-        });
-
-        await dataManager.login(username, password);
-        document.getElementById('auth-page').classList.add('hidden');
-        document.getElementById('auth-page').classList.remove('visible');
-
-        try {
-          await loadApp();
-        } catch (loadError) {
-          console.error('App load failed after signup:', loadError);
-          showAppScreen();
-          renderDashboard();
-          populateMaterialSelects();
-          if (typeof showNotification === 'function') {
-            showNotification('Welcome!', 'Account created successfully.', 'success');
-          }
-        }
-
-      } catch (err) {
-        errorEl.textContent = err.message || 'Could not create account. Please try again.';
-        errorEl.classList.add('show');
-      } finally {
-        btn.disabled = false;
-        btn.querySelector('.btn-text').classList.remove('hidden');
-        btn.querySelector('.btn-loading').classList.add('hidden');
-      }
-    });
-
-
-    /* ──────────────────────────────────────────
-       SPLASH DONE → check session
-    ────────────────────────────────────────── */
-    document.addEventListener('splashDone', async () => {
-      if (typeof AuthService !== 'undefined' && AuthService.isAuthenticated()) {
-        try {
-          await loadApp();
-        } catch {
-          showAuthPageInline();
-        }
-      } else {
-        const remembered = localStorage.getItem('rememberedUsername');
-        if (remembered) {
-          document.getElementById('login-username').value = remembered;
-          document.getElementById('login-remember').checked = true;
-        }
-        showAuthPageInline();
-      }
-    });
-
-    /* ──────────────────────────────────────────
-    FORGOT PASSWORD
-    ────────────────────────────────────────── */
-    const forgotLink     = document.getElementById('forgotPasswordLink');
-    const forgotSection  = document.getElementById('forgotPasswordSection');
-    const loginFormInner = document.getElementById('login-form');
-    const backToLogin    = document.getElementById('backToLoginBtn');
-    const forgotSubmit   = document.getElementById('forgotSubmitBtn');
-
-    forgotLink?.addEventListener('click', (e) => {
-      e.preventDefault();
-      // Hide tabs
-      document.querySelector('.auth-tabs').style.display = 'none';
-      // Hide login fields
-      loginFormInner.querySelectorAll('.field-label, .input-wrap, .form-meta, .btn-auth-primary, .divider, .btn-social, .field-error, .auth-error, .form-title, .form-sub').forEach(el => el.style.display = 'none');
-      forgotSection.style.display = 'block';
-    });
-
-    backToLogin?.addEventListener('click', () => {
-      // Show tabs again
-      document.querySelector('.auth-tabs').style.display = 'flex';
-      forgotSection.style.display = 'none';
-      loginFormInner.querySelectorAll('.field-label, .input-wrap, .form-meta, .btn-auth-primary, .divider, .btn-social, .form-title, .form-sub').forEach(el => el.style.display = '');
-      document.getElementById('forgot-error').classList.remove('show');
-      document.getElementById('forgot-success').style.display = 'none';
-      document.getElementById('forgot-username').value = '';
-    });
-
-    forgotSubmit?.addEventListener('click', async () => {
-        const username = document.getElementById('forgot-username').value.trim();
-        const errorEl  = document.getElementById('forgot-error');
-        const successEl = document.getElementById('forgot-success');
-
-        errorEl.classList.remove('show');
-        successEl.style.display = 'none';
-
-        if (!username) {
-            errorEl.textContent = 'Please enter your username.';
-            errorEl.classList.add('show');
-            return;
-        }
-
-        forgotSubmit.disabled = true;
-        forgotSubmit.querySelector('.btn-text').classList.add('hidden');
-        forgotSubmit.querySelector('.btn-loading').classList.remove('hidden');
-
-        try {
-            const response = await fetch('http://127.0.0.1:8000/api/auth/forgot-password/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
-
-            const data = await response.json();
-            successEl.textContent = data.detail;
-            successEl.style.display = 'block';
-
-        } catch (err) {
-            errorEl.textContent = 'Something went wrong. Please try again.';
-            errorEl.classList.add('show');
-        } finally {
-            forgotSubmit.disabled = false;
-            forgotSubmit.querySelector('.btn-text').classList.remove('hidden');
-            forgotSubmit.querySelector('.btn-loading').classList.add('hidden');
-        }
-      });
-
-
-
-      /* ──────────────────────────────────────────
-      GOOGLE LOGIN
-      ────────────────────────────────────────── */
-      async function handleGoogleLogin(response) {
-        const errorEl = document.getElementById('login-error');
-        errorEl.classList.remove('show');
-        errorEl.style.display = 'none';
-
-        try {
-          const res = await fetch('http://127.0.0.1:8000/api/auth/google/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: response.credential })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            errorEl.textContent = data.detail || 'Google login failed.';
-            errorEl.classList.add('show');
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        // Store tokens
-        localStorage.setItem('access_token', data.access);
-        localStorage.setItem('refresh_token', data.refresh);
-        localStorage.setItem('currentUser', JSON.stringify({
-            id: data.user.id,
-            username: data.user.username,
-            email: data.user.email,
-            firstName: data.user.first_name,
-            lastName: data.user.last_name,
-            role: data.user.role
-        }));
-
-        // Hide auth, load app
-        document.getElementById('auth-page').classList.add('hidden');
-        document.getElementById('auth-page').classList.remove('visible');
-        await loadApp();
-
-        } catch (err) {
-        errorEl.textContent = 'Google login failed. Please try again.';
-        errorEl.classList.add('show');
-        errorEl.style.display = 'block';
-        }
-      }
-
-      // Trigger Google popup on button click
-      document.getElementById('googleLoginBtn')?.addEventListener('click', () => {
-      google.accounts.id.prompt();
-      });
-</script>
+    <!-- Main Script -->
+    <script src="script.js"></script>
 </body>
+
 </html>

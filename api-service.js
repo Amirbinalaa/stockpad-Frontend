@@ -1,12 +1,12 @@
 // ==================== API CONFIGURATION ====================
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
-const AUTH_BASE_URL = 'http://127.0.0.1:8000/api/auth';
+const API_BASE_URL = 'https://stockpad-backend-production.up.railway.app/api';
+const AUTH_BASE_URL = 'https://stockpad-backend-production.up.railway.app/api/auth';
 
 // ==================== AUTHENTICATION SERVICE ====================
 class AuthService {
 
     static async login(username, password) {
-        const response = await fetch(`http://127.0.0.1:8000/api/token/`, {
+        const response = await fetch(`https://stockpad-backend-production.up.railway.app/api/token/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -24,7 +24,7 @@ class AuthService {
 
             // Fetch real user data
             try {
-                const meResponse = await fetch('http://127.0.0.1:8000/api/auth/me/', {
+                const meResponse = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/me/', {
                     headers: { 'Authorization': `Bearer ${data.access}` }
                 });
                 const userData = await meResponse.json();
@@ -49,7 +49,7 @@ class AuthService {
     }
 
     static async register(userData) {
-        const response = await fetch('http://127.0.0.1:8000/api/auth/register/', {
+        const response = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/register/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
@@ -75,7 +75,7 @@ class AuthService {
         if (!refreshToken) return false;
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/token/refresh/`, {
+            const response = await fetch(`https://stockpad-backend-production.up.railway.app/api/token/refresh/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh: refreshToken })
@@ -250,6 +250,24 @@ class ApiService {
     static getDashboardSummary() {
         return this.request('/inventory/dashboard/');
     }
+
+    // ── Material Requests ──────────────────────────────────
+    static getMaterialRequests(status = null) {
+        const endpoint = status 
+            ? `/inventory/requests/list/?status=${status}`
+            : '/inventory/requests/list/';
+        return this.request(endpoint);
+    }
+
+    static reviewMaterialRequest(id, status, reviewNotes = '') {
+        return this.request(`/inventory/requests/${id}/review/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                status: status,
+                review_notes: reviewNotes
+            })
+        });
+    }
 }
 
 // ==================== DATA MANAGER ====================
@@ -257,6 +275,7 @@ class DataManager {
     constructor() {
         this.materials = [];
         this.transactions = [];
+        this.materialRequests = [];
     }
 
     async initialize() {
@@ -339,6 +358,29 @@ class DataManager {
         return transaction;
     }
 
+    // ── Material Requests ──────────────────────────────────
+    async loadMaterialRequests(status = null) {
+        const data = await ApiService.getMaterialRequests(status);
+        this.materialRequests = data.map(this._toFrontendRequest);
+        return this.materialRequests;
+    }
+
+    async approveMaterialRequest(id, reviewNotes = '') {
+        const updated = await ApiService.reviewMaterialRequest(id, 'approved', reviewNotes);
+        const request = this._toFrontendRequest(updated);
+        const index = this.materialRequests.findIndex(r => r.id === id);
+        if (index !== -1) this.materialRequests[index] = request;
+        return request;
+    }
+
+    async denyMaterialRequest(id, reviewNotes = '') {
+        const updated = await ApiService.reviewMaterialRequest(id, 'denied', reviewNotes);
+        const request = this._toFrontendRequest(updated);
+        const index = this.materialRequests.findIndex(r => r.id === id);
+        if (index !== -1) this.materialRequests[index] = request;
+        return request;
+    }
+
     // ── Auth ───────────────────────────────────────────────
     async login(username, password) {
         const response = await AuthService.login(username, password);
@@ -356,6 +398,10 @@ class DataManager {
 
     getTransactions() {
         return this.transactions;
+    }
+
+    getMaterialRequests() {
+        return this.materialRequests;
     }
 
     getCurrentUser() {
@@ -383,6 +429,23 @@ class DataManager {
             type: t.type,
             qty: t.quantity,
             notes: t.notes
+        };
+    }
+
+    _toFrontendRequest(r) {
+        return {
+            id: r.id,
+            materialId: r.material,
+            materialName: r.material_name,
+            materialUnit: r.material_unit,
+            requesterEmail: r.requester_email,
+            quantity: parseFloat(r.quantity),
+            reason: r.reason,
+            status: r.status,
+            reviewedBy: r.reviewed_by,
+            reviewNotes: r.review_notes,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at
         };
     }
 }

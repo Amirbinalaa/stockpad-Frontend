@@ -121,9 +121,11 @@ document.addEventListener('splashDone', async () => {
 // ==================== LOGOUT ====================
 if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
-        appLoaded = false;  // ← Allow re-initialization if user logs back in
+        appLoaded = false;
         dataManager.logout();
         showAuthPage();
+        const reportContainer = document.getElementById('reportContainer');
+        if (reportContainer) reportContainer.style.display = 'none';
         showNotification('Logged Out', 'You have been logged out successfully.', 'info');
     });
 }
@@ -505,9 +507,13 @@ class NotificationSystem {
         if (days < 7) return `${days}d ago`; return new Date(ts).toLocaleDateString();
     }
 
-    save() { localStorage.setItem('stockpad_notifications', JSON.stringify(this.notifications)); }
+    getKey() {
+        const user = AuthService.getCurrentUser();
+        return user ? `stockpad_notifications_${user.id}` : 'stockpad_notifications';
+    }
+    save() { localStorage.setItem(this.getKey(), JSON.stringify(this.notifications)); }
     load() {
-        const s = localStorage.getItem('stockpad_notifications');
+        const s = localStorage.getItem(this.getKey());
         if (s) this.notifications = JSON.parse(s).map(n => ({ ...n, timestamp: new Date(n.timestamp) }));
     }
 }
@@ -550,7 +556,8 @@ function loadProfileForm() {
 });
 
     // Load saved profile pic
-    const savedPic = localStorage.getItem('profilePic');
+const picKey = user ? `profilePic_${user.id}` : 'profilePic';
+const savedPic = localStorage.getItem(picKey);
     if (savedPic) {
         document.getElementById('profilePicPreview').src     = savedPic;
         document.getElementById('profilePicPreview').style.display  = 'block';
@@ -589,7 +596,9 @@ if (profilePicInput) {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const base64 = ev.target.result;
-            localStorage.setItem('profilePic', base64);
+            const user = dataManager.getCurrentUser();
+const picKey = user ? `profilePic_${user.id}` : 'profilePic';
+localStorage.setItem(picKey, base64);
             document.getElementById('profilePicPreview').src     = base64;
             document.getElementById('profilePicPreview').style.display  = 'block';
             document.getElementById('profilePicFallback').style.display = 'none';
@@ -609,7 +618,7 @@ if (saveProfileBtn) {
         const msg = document.getElementById('profileSaveMsg');
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/auth/profile/', {
+            const response = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/profile/', {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -694,7 +703,7 @@ const submitPasswordBtn = document.getElementById('submitPasswordBtn');
             }
 
             try {
-                const response = await fetch('http://127.0.0.1:8000/api/auth/change-password/', {
+                const response = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/change-password/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
