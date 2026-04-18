@@ -82,6 +82,22 @@ function checkNotifications() {
                 'alert'
             );
         }
+        // Start request polling
+    setInterval(async () => {
+        try {
+            const requests = await dataManager.loadMaterialRequests('pending');
+            const badge = document.querySelector('#requestsNotificationIndicator .notification-badge');
+            const indicator = document.getElementById('requestsNotificationIndicator');
+            if (requests.length > 0) {
+                badge.textContent = requests.length;
+                indicator.style.display = 'block';
+            } else {
+                indicator.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Failed to load requests:', e);
+        }
+    }, 10000); // Poll every 10 seconds
 
         // REMINDER — unused for 30+ days
         if (material.lastUpdated) {
@@ -133,6 +149,12 @@ if (logoutBtn) {
 // ==================== SIDEBAR NAVIGATION ====================
 navItems.forEach(item => {
     item.addEventListener('click', () => {
+        // Handle requests page - redirect to separate page
+        if (item.dataset.page === 'requests') {
+            window.location.href = 'requests.html';
+            return;
+        }
+
         navItems.forEach(n => n.classList.remove('active'));
         item.classList.add('active');
 
@@ -547,7 +569,10 @@ function loadProfileForm() {
     document.getElementById('editFirstName').value = user.firstName || '';
     document.getElementById('editLastName').value  = user.lastName  || '';
     document.getElementById('editUsername').value  = user.username  || '';
-    document.getElementById('editEmail').value     = user.email     || '';
+    const emailInput = document.getElementById('editEmail');
+    if (emailInput) {
+        emailInput.value = user.email || '';
+    }
     ['editFirstName','editLastName','editUsername'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => {
         document.getElementById('saveProfileBtn').style.display = 'inline-flex';
