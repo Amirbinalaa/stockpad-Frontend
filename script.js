@@ -51,6 +51,23 @@ async function loadApp() {
     checkNotifications();
     loadProfileForm();
 
+    // Start request polling
+setInterval(async () => {
+    try {
+        const requests = await dataManager.loadMaterialRequests('pending');
+        const badge = document.querySelector('#requestsNotificationIndicator .notification-badge');
+        const indicator = document.getElementById('requestsNotificationIndicator');
+        if (requests.length > 0) {
+            badge.textContent = requests.length;
+            indicator.style.display = 'block';
+        } else {
+            indicator.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Failed to load requests:', e);
+    }
+}, 10000); // Poll every 10 seconds
+
     const user = dataManager.getCurrentUser();
     const display = document.getElementById('settings-username-display');
     if (user && display) {
