@@ -1443,9 +1443,14 @@
         }));
 
         // Hide auth, load app
-        document.getElementById('auth-page').classList.add('hidden');
-        document.getElementById('auth-page').classList.remove('visible');
-        await loadApp();
+          document.getElementById('auth-page').classList.add('hidden');
+          document.getElementById('auth-page').classList.remove('visible');
+            
+          // Re-enable scrolling
+          document.body.classList.add('app-visible');
+          document.documentElement.style.overflow = '';
+            
+          await loadApp();;
 
         } catch (err) {
         errorEl.textContent = 'Google login failed. Please try again.';
