@@ -1203,6 +1203,10 @@
         document.getElementById('auth-page').classList.add('hidden');
         document.getElementById('auth-page').classList.remove('visible');
 
+        // Re-enable scrolling
+        document.body.classList.add('app-visible');
+        document.documentElement.style.overflow = '';
+
         try {
           await loadApp();
         } catch (loadError) {
@@ -1278,6 +1282,10 @@
         document.getElementById('auth-page').classList.add('hidden');
         document.getElementById('auth-page').classList.remove('visible');
 
+        // Re-enable scrolling
+        document.body.classList.add('app-visible');
+        document.documentElement.style.overflow = '';
+
         try {
           await loadApp();
         } catch (loadError) {
@@ -1311,12 +1319,11 @@
         } catch {
           showAuthPageInline();
         }
-      } else {
-        const remembered = localStorage.getItem('rememberedUsername');
+      } else {const remembered = localStorage.getItem('rememberedUsername');
         if (remembered) {
             document.getElementById('login-email').value = remembered;
             document.getElementById('login-remember').checked = true;
-          }
+        }
         showAuthPageInline();
       }
     });
