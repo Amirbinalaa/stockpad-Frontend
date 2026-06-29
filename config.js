@@ -3,7 +3,7 @@
 
 const StockPadConfig = (() => {
     const PRODUCTION_HOST = 'stockpad-backend-production.up.railway.app';
-    const PRODUCTION_FRONTEND_ORIGIN = 'https://stockpad.netlify.app';
+    const PRODUCTION_FRONTEND_ORIGIN = 'https://stockpad-smoky.vercel.app';
     const GOOGLE_CLIENT_ID = '506308055021-hg407bv24ln5kelikrud2k3e9iffha1e.apps.googleusercontent.com';
     const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '']);
     const DEFAULT_LOCAL_PORT = 9000;
