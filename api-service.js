@@ -1,132 +1,374 @@
-// ==================== API CONFIGURATION ====================
-const API_BASE_URL = 'https://stockpad-backend-production.up.railway.app/api';
-const AUTH_BASE_URL = 'https://stockpad-backend-production.up.railway.app/api/auth';
+// ==================== API FOUNDATION ====================
 
-// ==================== AUTHENTICATION SERVICE ====================
-class AuthService {
+const ROOT_URL = typeof CONFIG_ROOT_URL !== 'undefined'
+    ? CONFIG_ROOT_URL
+    : StockPadConfig.ROOT_URL;
 
-    static async login(username, password) {
-        const response = await fetch(`https://stockpad-backend-production.up.railway.app/api/token/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
+const API_BASE_URL = typeof CONFIG_API_BASE_URL !== 'undefined'
+    ? CONFIG_API_BASE_URL
+    : StockPadConfig.API_BASE_URL;
 
-        if (!response.ok) {
-            throw new Error(`Login failed: ${response.status}`);
+const AUTH_BASE_URL = typeof CONFIG_AUTH_BASE_URL !== 'undefined'
+    ? CONFIG_AUTH_BASE_URL
+    : StockPadConfig.AUTH_BASE_URL;
+
+const TOKEN_STORAGE_KEY = 'access_token';
+const REFRESH_STORAGE_KEY = 'refresh_token';
+const USER_STORAGE_KEY = 'currentUser';
+const REMEMBER_ME_KEY = 'rememberMe';
+
+function resolveMediaUrl(path) {
+    if (!path) return '';
+    const raw = String(path).trim();
+    if (!raw || raw.startsWith('data:') || /^https?:\/\//i.test(raw)) return raw;
+    const root = StockPadConfig.stripTrailingSlashes(ROOT_URL);
+    return raw.startsWith('/') ? `${root}${raw}` : `${root}/${raw}`;
+}
+
+// ==================== ERRORS ====================
+
+class SessionExpiredError extends Error {
+    constructor(message = 'Session expired. Please login again.') {
+        super(message);
+        this.name = 'SessionExpiredError';
+        this.code = 'SESSION_EXPIRED';
+        this.silent = true;
+    }
+}
+
+// ==================== HTTP CLIENT (INTERCEPTOR PIPELINE) ====================
+
+class HttpClient {
+    constructor(baseURL) {
+        this.baseURL = StockPadConfig.stripTrailingSlashes(baseURL);
+        this._requestInterceptors = [];
+        this._responseInterceptors = [];
+    }
+
+    useRequest(interceptor) {
+        this._requestInterceptors.push(interceptor);
+        return this;
+    }
+
+    useResponse(interceptor) {
+        this._responseInterceptors.push(interceptor);
+        return this;
+    }
+
+    resolveUrl(endpoint, options = {}) {
+        if (/^https?:\/\//i.test(endpoint)) {
+            return options.trailingSlash === false
+                ? StockPadConfig.stripTrailingSlashes(endpoint)
+                : StockPadConfig.withTrailingSlash(endpoint);
         }
 
-        const data = await response.json();
+        const cleanEndpoint = String(endpoint || '').trim();
+        if (!cleanEndpoint) return this.baseURL;
 
-        if (data.access && data.refresh) {
-            localStorage.setItem('access_token', data.access);
-            localStorage.setItem('refresh_token', data.refresh);
+        const [pathPart, queryPart] = cleanEndpoint.split('?');
+        const normalizedPath = pathPart.startsWith('/') ? pathPart : `/${pathPart}`;
+        let url = `${this.baseURL}${normalizedPath}`;
 
-            // Fetch real user data
-            try {
-                const meResponse = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/me/', {
-                    headers: { 'Authorization': `Bearer ${data.access}` }
+        if (options.trailingSlash !== false) {
+            const queryIndex = url.indexOf('?');
+            const base = queryIndex === -1 ? url : url.slice(0, queryIndex);
+            url = StockPadConfig.withTrailingSlash(base) + (queryIndex === -1 ? '' : url.slice(queryIndex));
+        }
+
+        return queryPart ? `${url}?${queryPart}` : url;
+    }
+
+    buildHeaders(options = {}) {
+        const headers = { ...(options.headers || {}) };
+        const hasFormData = options.body instanceof FormData;
+
+        if (!hasFormData && !headers['Content-Type'] && !headers['content-type']) {
+            headers['Content-Type'] = 'application/json';
+        }
+
+        if (hasFormData) {
+            delete headers['Content-Type'];
+            delete headers['content-type'];
+        }
+
+        return headers;
+    }
+
+    async request(endpoint, options = {}) {
+        const {
+            skipAuth = false,
+            raw = false,
+            trailingSlash = true,
+            _retry = false,
+            ...fetchOptions
+        } = options;
+
+        let url = this.resolveUrl(endpoint, { trailingSlash });
+        let config = {
+            method: 'GET',
+            credentials: 'omit',
+            ...fetchOptions,
+            headers: this.buildHeaders(fetchOptions),
+        };
+
+        const requestContext = {
+            url,
+            config,
+            endpoint,
+            skipAuth,
+            raw,
+            trailingSlash,
+            isRetry: _retry,
+            client: this,
+        };
+
+        for (const interceptor of this._requestInterceptors) {
+            await interceptor(requestContext);
+            url = requestContext.url;
+            config = requestContext.config;
+        }
+
+        let response = await fetch(url, config);
+
+        const responseContext = {
+            ...requestContext,
+            response,
+            async retry() {
+                return this.client.request(endpoint, {
+                    ...options,
+                    _retry: true,
                 });
-                const userData = await meResponse.json();
-                const user = {
-                    id: userData.id,
-                    username: userData.username,
-                    email: userData.email,
-                    firstName: userData.first_name,
-                    lastName: userData.last_name,
-                    role: userData.role
-                };
-                localStorage.setItem('currentUser', JSON.stringify(user));
-                return { user, token: data.access };
-            } catch {
-                const user = this.getUserFromToken(data.access);
-                localStorage.setItem('currentUser', JSON.stringify(user));
-                return { user, token: data.access };
+            },
+        };
+
+        for (const interceptor of this._responseInterceptors) {
+            const result = await interceptor(responseContext);
+            if (result && Object.prototype.hasOwnProperty.call(result, 'response')) {
+                response = result.response;
+                responseContext.response = response;
             }
         }
 
-        throw new Error('No token received');
+        if (raw) return response;
+        if (response.status === 204) return null;
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const detail = errorData.detail
+                || errorData.message
+                || (typeof errorData === 'object' ? Object.entries(errorData).map(([field, errors]) => {
+                    const errList = Array.isArray(errors) ? errors : [errors];
+                    return `${field}: ${errList.join(', ')}`;
+                }).join(' | ') : null)
+                || `HTTP error! status: ${response.status}`;
+
+            if (response.status === 401 && !skipAuth) {
+                throw new SessionExpiredError(
+                    typeof detail === 'string' ? detail : 'Session expired. Please login again.'
+                );
+            }
+
+            throw new Error(detail);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            return response.json();
+        }
+
+        return response.text();
+    }
+}
+
+const http = new HttpClient(API_BASE_URL);
+
+// ==================== AUTHENTICATION SERVICE ====================
+
+class AuthService {
+    static async login(username, password, rememberMe = false) {
+        const response = await fetch(StockPadConfig.resolveApiUrl('/token/'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Login failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data.access || !data.refresh) {
+            throw new Error('No token received');
+        }
+
+        this._persistTokens(data.access, data.refresh);
+        this.setRememberMe(rememberMe);
+
+        try {
+            const userData = await http.request('/auth/me/', { skipAuth: false });
+            const user = this._mapUser(userData);
+            this.setCurrentUser(user, rememberMe);
+            return { user, token: data.access };
+        } catch {
+            const user = this.getUserFromToken(data.access);
+            this.setCurrentUser(user, rememberMe);
+            return { user, token: data.access };
+        }
     }
 
     static async register(userData) {
-        const response = await fetch('https://stockpad-backend-production.up.railway.app/api/auth/register/', {
+        const data = await http.request('/auth/register/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
+            skipAuth: true,
+            body: JSON.stringify(userData),
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            // Extract Django validation errors
-            const messages = [];
-            for (const [field, errors] of Object.entries(data)) {
-                const errList = Array.isArray(errors) ? errors : [errors];
-                messages.push(`${field}: ${errList.join(', ')}`);
-            }
-            throw new Error(messages.join(' | ') || 'Registration failed.');
-        }
-
         return data;
     }
 
     static async refreshAccessToken() {
-        const refreshToken = localStorage.getItem('refresh_token');
+        const refreshToken = localStorage.getItem(REFRESH_STORAGE_KEY);
         if (!refreshToken) return false;
 
         try {
-            const response = await fetch(`https://stockpad-backend-production.up.railway.app/api/token/refresh/`, {
+            const response = await fetch(StockPadConfig.resolveApiUrl('/token/refresh/'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: refreshToken })
+                body: JSON.stringify({ refresh: refreshToken }),
             });
 
             if (!response.ok) return false;
 
             const data = await response.json();
-            if (data.access) {
-                localStorage.setItem('access_token', data.access);
-                return true;
-            }
-            return false;
+            if (!data.access) return false;
+
+            localStorage.setItem(TOKEN_STORAGE_KEY, data.access);
+            return true;
         } catch {
             return false;
         }
     }
 
+    static async fetchProfile() {
+        return http.request('/auth/profile/');
+    }
+
+    static async uploadProfilePicture(file) {
+        const formData = new FormData();
+        formData.append('profile_picture', file);
+
+        return http.request('/auth/profile-picture/', {
+            method: 'POST',
+            body: formData,
+        });
+    }
+
+    static async updateProfile(profileData) {
+        return http.request('/auth/profile/', {
+            method: 'PATCH',
+            body: JSON.stringify(profileData),
+        });
+    }
+
+    static async changePassword(oldPassword, newPassword) {
+        return http.request('/auth/change-password/', {
+            method: 'POST',
+            body: JSON.stringify({
+                old_password: oldPassword,
+                new_password: newPassword,
+            }),
+        });
+    }
+
+    static async forgotPassword(email) {
+        const response = await fetch(StockPadConfig.resolveAuthUrl('forgot-password/'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to send reset email.');
+        }
+        return data;
+    }
+
+    static async googleLogin(credential, isAccessToken = false) {
+        const response = await fetch(StockPadConfig.resolveAuthUrl('google/'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential, isAccessToken }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || 'Google login failed.');
+        }
+        if (!data.access || !data.refresh) {
+            throw new Error('No token received from Google login.');
+        }
+        this._persistTokens(data.access, data.refresh);
+        const user = data.user
+            ? this._mapUser({
+                ...data.user,
+                first_name: data.user.first_name ?? data.user.firstName,
+                last_name: data.user.last_name ?? data.user.lastName,
+            })
+            : this.getUserFromToken(data.access);
+        this.setCurrentUser(user, Boolean(data.remember_me));
+        return { user, token: data.access, refresh: data.refresh };
+    }
+
     static logout() {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('currentUser');
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem(REFRESH_STORAGE_KEY);
+        localStorage.removeItem(USER_STORAGE_KEY);
     }
 
     static getToken() {
-        return localStorage.getItem('access_token');
+        return localStorage.getItem(TOKEN_STORAGE_KEY);
     }
 
     static isAuthenticated() {
         return !!this.getToken() && !this.isTokenExpired();
     }
 
-    // Decode JWT to get real user info (id, username)
+    static setRememberMe(enabled) {
+        localStorage.setItem(REMEMBER_ME_KEY, enabled ? '1' : '0');
+    }
+
+    static isRememberMe() {
+        return localStorage.getItem(REMEMBER_ME_KEY) === '1';
+    }
+
+    static setCurrentUser(user, rememberMe = this.isRememberMe()) {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+        this.setRememberMe(rememberMe);
+        if (rememberMe && user?.username) {
+            localStorage.setItem('rememberedUsername', user.username);
+        } else {
+            localStorage.removeItem('rememberedUsername');
+        }
+    }
+
     static getUserFromToken(token) {
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             return {
                 id: payload.user_id,
-                username: payload.username || payload.name || 'User'
+                username: payload.username || payload.name || 'User',
             };
         } catch {
             return { id: null, username: 'User' };
         }
     }
 
-    // Check if access token is expired before making requests
     static isTokenExpired() {
         const token = this.getToken();
         if (!token) return true;
+
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
+            if (!payload.exp) return true;
             return payload.exp * 1000 < Date.now();
         } catch {
             return true;
@@ -134,71 +376,81 @@ class AuthService {
     }
 
     static getCurrentUser() {
-        const stored = localStorage.getItem('currentUser');
+        const stored = localStorage.getItem(USER_STORAGE_KEY);
         return stored ? JSON.parse(stored) : null;
+    }
+
+    static _persistTokens(access, refresh) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, access);
+        localStorage.setItem(REFRESH_STORAGE_KEY, refresh);
+    }
+
+    static _mapUser(userData) {
+        return {
+            id: userData.id,
+            username: userData.username,
+            email: userData.email,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
+            role: userData.role,
+            profilePictureUrl: userData.profile_picture_url || null,
+        };
     }
 }
 
-// ==================== API SERVICE ====================
-class ApiService {
+http
+    .useRequest(async (ctx) => {
+        if (ctx.skipAuth) return;
 
-    static async request(endpoint, options = {}) {
-        // If token is expired, try to refresh before the request
         if (AuthService.isTokenExpired()) {
             const refreshed = await AuthService.refreshAccessToken();
             if (!refreshed) {
                 AuthService.logout();
-                throw new Error('Session expired. Please login again.');
+                throw new SessionExpiredError();
             }
         }
 
         const token = AuthService.getToken();
-        const url = `${API_BASE_URL}${endpoint}`;
+        if (token) {
+            ctx.config.headers = {
+                ...ctx.config.headers,
+                Authorization: `Bearer ${token}`,
+            };
+        }
+    })
+    .useResponse(async (ctx) => {
+        if (ctx.skipAuth || ctx.isRetry || ctx.response.status !== 401) return;
 
-        const config = {
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token && { 'Authorization': `Bearer ${token}` }),
-                ...options.headers
-            },
-            ...options
+        const refreshed = await AuthService.refreshAccessToken();
+        if (!refreshed) {
+            AuthService.logout();
+            throw new SessionExpiredError();
+        }
+
+        ctx.config.headers = {
+            ...ctx.config.headers,
+            Authorization: `Bearer ${AuthService.getToken()}`,
         };
 
-        // Remove headers from options to avoid duplication
-        delete config.headers['Content-Type'];
-        config.headers['Content-Type'] = 'application/json';
+        return {
+            response: await fetch(ctx.url, ctx.config),
+        };
+    });
 
-        try {
-            let response = await fetch(url, config);
+// ==================== API SERVICE ====================
 
-            // If still 401 after proactive refresh, try once more
-            if (response.status === 401) {
-                const refreshed = await AuthService.refreshAccessToken();
-                if (refreshed) {
-                    config.headers['Authorization'] = `Bearer ${AuthService.getToken()}`;
-                    response = await fetch(url, config);
-                } else {
-                    AuthService.logout();
-                    throw new Error('Session expired. Please login again.');
-                }
-            }
-
-            if (response.status === 204) return null; // No content (e.g. DELETE success)
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-            }
-
-            return await response.json();
-
-        } catch (error) {
-            console.error(`API request failed [${endpoint}]:`, error.message);
-            throw error;
-        }
+class ApiService {
+    static isSessionExpiredError(error) {
+        return error instanceof SessionExpiredError
+            || error?.name === 'SessionExpiredError'
+            || error?.code === 'SESSION_EXPIRED'
+            || error?.silent === true;
     }
 
-    // ── Materials ──────────────────────────────────────────
+    static request(endpoint, options = {}) {
+        return http.request(endpoint, options);
+    }
+
     static getMaterials() {
         return this.request('/inventory/materials/');
     }
@@ -210,31 +462,39 @@ class ApiService {
     static createMaterial(materialData) {
         return this.request('/inventory/materials/', {
             method: 'POST',
-            body: JSON.stringify(materialData)
+            body: JSON.stringify(materialData),
         });
     }
 
     static updateMaterial(id, materialData) {
         return this.request(`/inventory/materials/${id}/`, {
             method: 'PUT',
-            body: JSON.stringify(materialData)
+            body: JSON.stringify(materialData),
         });
     }
 
     static patchMaterial(id, partialData) {
         return this.request(`/inventory/materials/${id}/`, {
             method: 'PATCH',
-            body: JSON.stringify(partialData)
+            body: JSON.stringify(partialData),
         });
     }
 
     static deleteMaterial(id) {
         return this.request(`/inventory/materials/${id}/`, {
-            method: 'DELETE'
+            method: 'DELETE',
         });
     }
 
-    // ── Transactions ───────────────────────────────────────
+    static uploadMaterialImage(id, file) {
+        const formData = new FormData();
+        formData.append('image', file);
+        return this.request(`/inventory/materials/${id}/`, {
+            method: 'PATCH',
+            body: formData,
+        });
+    }
+
     static getTransactions() {
         return this.request('/inventory/transactions/');
     }
@@ -242,19 +502,17 @@ class ApiService {
     static createTransaction(transactionData) {
         return this.request('/inventory/transactions/', {
             method: 'POST',
-            body: JSON.stringify(transactionData)
+            body: JSON.stringify(transactionData),
         });
     }
 
-    // ── Dashboard ──────────────────────────────────────────
     static getDashboardSummary() {
         return this.request('/inventory/dashboard/');
     }
 
-    // ── Material Requests ──────────────────────────────────
     static getMaterialRequests(status = null) {
-        const endpoint = status 
-            ? `/inventory/requests/list/?status=${status}`
+        const endpoint = status
+            ? `/inventory/requests/list/?status=${encodeURIComponent(status)}`
             : '/inventory/requests/list/';
         return this.request(endpoint);
     }
@@ -263,14 +521,50 @@ class ApiService {
         return this.request(`/inventory/requests/${id}/review/`, {
             method: 'PATCH',
             body: JSON.stringify({
-                status: status,
-                review_notes: reviewNotes
-            })
+                status,
+                review_notes: reviewNotes,
+            }),
+        });
+    }
+
+    static getAIInsights() {
+        return this.request('/inventory/insights/');
+    }
+
+    static getPreferences() {
+        return this.request('/settings/preferences/');
+    }
+
+    static updatePreferences(preferenceData) {
+        return this.request('/settings/preferences/', {
+            method: 'PUT',
+            body: JSON.stringify(preferenceData),
+        });
+    }
+
+    static getNotifications() {
+        return this.request('/notifications/');
+    }
+
+    static getNotificationSummary() {
+        return this.request('/notifications/summary/');
+    }
+
+    static markNotificationRead(id) {
+        return this.request(`/notifications/${id}/read/`, {
+            method: 'PATCH',
+        });
+    }
+
+    static clearAllNotifications() {
+        return this.request('/notifications/clear-all/', {
+            method: 'DELETE',
         });
     }
 }
 
 // ==================== DATA MANAGER ====================
+
 class DataManager {
     constructor() {
         this.materials = [];
@@ -279,36 +573,38 @@ class DataManager {
     }
 
     async initialize() {
-        try {
-            await Promise.all([
-                this.loadMaterials(),
-                this.loadTransactions()
-            ]);
-            return true;
-        } catch (error) {
-            console.error('Failed to initialize data:', error);
-            throw error; // Let the UI show a proper error — no silent dummy data
-        }
+        await Promise.all([
+            this.loadMaterials(),
+            this.loadTransactions(),
+        ]);
+        return true;
     }
 
-    // ── Materials ──────────────────────────────────────────
     async loadMaterials() {
         const data = await ApiService.getMaterials();
-        this.materials = data.map(this._toFrontendMaterial);
+        this.materials = data.map((item) => this._toFrontendMaterial(item));
         return this.materials;
     }
 
-    async addMaterial(materialData) {
+    async addMaterial(materialData, imageFile = null) {
         const backendData = {
             name: materialData.name,
             unit: materialData.unit,
             initial_quantity: materialData.qty,
             max_quantity: materialData.maxQty,
-            low_stock_threshold_percent: materialData.lowStockThreshold
+            low_stock_threshold_percent: materialData.lowStockThreshold != null
+                ? Math.round(materialData.lowStockThreshold)
+                : null,
+            cost_price: materialData.costPrice ?? 0,
+            currency: materialData.currency || 'EGP',
+            costing_method: materialData.costingMethod || 'MOVING_AVG',
         };
-
         const created = await ApiService.createMaterial(backendData);
-        const material = this._toFrontendMaterial(created);
+        let payload = created;
+        if (imageFile) {
+            payload = await ApiService.uploadMaterialImage(created.id, imageFile);
+        }
+        const material = this._toFrontendMaterial(payload);
         this.materials.push(material);
         return material;
     }
@@ -318,25 +614,25 @@ class DataManager {
             name: materialData.name,
             unit: materialData.unit,
             max_quantity: materialData.maxQty,
-            low_stock_threshold_percent: materialData.lowStockThreshold
+            low_stock_threshold_percent: materialData.lowStockThreshold != null
+                ? Math.round(materialData.lowStockThreshold)
+                : null,
         };
-
         const updated = await ApiService.updateMaterial(id, backendData);
         const material = this._toFrontendMaterial(updated);
-        const index = this.materials.findIndex(m => m.id === id);
+        const index = this.materials.findIndex((m) => m.id === id);
         if (index !== -1) this.materials[index] = material;
         return material;
     }
 
     async deleteMaterial(id) {
         await ApiService.deleteMaterial(id);
-        this.materials = this.materials.filter(m => m.id !== id);
+        this.materials = this.materials.filter((m) => m.id !== id);
     }
 
-    // ── Transactions ───────────────────────────────────────
     async loadTransactions() {
         const data = await ApiService.getTransactions();
-        this.transactions = data.map(this._toFrontendTransaction);
+        this.transactions = data.map((item) => this._toFrontendTransaction(item));
         return this.transactions;
     }
 
@@ -345,30 +641,25 @@ class DataManager {
             material: transactionData.materialId,
             type: transactionData.type,
             quantity: transactionData.qty,
-            notes: transactionData.notes
+            notes: transactionData.notes,
         };
-
         const created = await ApiService.createTransaction(backendData);
         const transaction = this._toFrontendTransaction(created);
         this.transactions.push(transaction);
-
-        // Reload materials to get accurate updated quantity from backend
         await this.loadMaterials();
-
         return transaction;
     }
 
-    // ── Material Requests ──────────────────────────────────
     async loadMaterialRequests(status = null) {
         const data = await ApiService.getMaterialRequests(status);
-        this.materialRequests = data.map(this._toFrontendRequest);
+        this.materialRequests = data.map((item) => this._toFrontendRequest(item));
         return this.materialRequests;
     }
 
     async approveMaterialRequest(id, reviewNotes = '') {
         const updated = await ApiService.reviewMaterialRequest(id, 'approved', reviewNotes);
         const request = this._toFrontendRequest(updated);
-        const index = this.materialRequests.findIndex(r => r.id === id);
+        const index = this.materialRequests.findIndex((r) => r.id === id);
         if (index !== -1) this.materialRequests[index] = request;
         return request;
     }
@@ -376,22 +667,19 @@ class DataManager {
     async denyMaterialRequest(id, reviewNotes = '') {
         const updated = await ApiService.reviewMaterialRequest(id, 'denied', reviewNotes);
         const request = this._toFrontendRequest(updated);
-        const index = this.materialRequests.findIndex(r => r.id === id);
+        const index = this.materialRequests.findIndex((r) => r.id === id);
         if (index !== -1) this.materialRequests[index] = request;
         return request;
     }
 
-    // ── Auth ───────────────────────────────────────────────
-    async login(username, password) {
-        const response = await AuthService.login(username, password);
-        return response;
+    async login(username, password, rememberMe = false) {
+        return AuthService.login(username, password, rememberMe);
     }
 
     logout() {
         AuthService.logout();
     }
 
-    // ── Getters ────────────────────────────────────────────
     getMaterials() {
         return this.materials;
     }
@@ -408,8 +696,8 @@ class DataManager {
         return AuthService.getCurrentUser();
     }
 
-    // ── Private Transformers ───────────────────────────────
     _toFrontendMaterial(m) {
+        const imagePath = m.image || m.image_url || m.imageUrl || null;
         return {
             id: m.id,
             name: m.name,
@@ -417,7 +705,12 @@ class DataManager {
             maxQty: parseFloat(m.max_quantity) || 100,
             unit: m.unit,
             lowStockThreshold: m.low_stock_threshold_percent,
-            lastUpdated: m.updated_at ? m.updated_at.split('T')[0] : null
+            costPrice: parseFloat(m.cost_price) || 0,
+            currency: m.currency || 'EGP',
+            costingMethod: m.costing_method || 'MOVING_AVG',
+            imageUrl: resolveMediaUrl(imagePath),
+            image_url: resolveMediaUrl(imagePath),
+            lastUpdated: m.updated_at ? m.updated_at.split('T')[0] : null,
         };
     }
 
@@ -428,7 +721,7 @@ class DataManager {
             materialId: t.material,
             type: t.type,
             qty: t.quantity,
-            notes: t.notes
+            notes: t.notes,
         };
     }
 
@@ -445,10 +738,9 @@ class DataManager {
             reviewedBy: r.reviewed_by,
             reviewNotes: r.review_notes,
             createdAt: r.created_at,
-            updatedAt: r.updated_at
+            updatedAt: r.updated_at,
         };
     }
 }
 
-// ==================== GLOBAL INSTANCE ====================
 const dataManager = new DataManager();
