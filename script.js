@@ -291,6 +291,7 @@ const MATERIAL_IMAGE_CACHE_PREFIX = 'sp_material_img_';
 function resolveMaterialImageUrl(material) {
     if (!material) return '';
     const candidates = [
+        material.image,
         material.imageUrl,
         material.image_url,
         material.thumbnail_url,
