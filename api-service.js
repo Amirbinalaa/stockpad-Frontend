@@ -546,18 +546,47 @@ class ApiService {
         return this.request('/notifications/');
     }
 
+    /**
+     * Persist a notification via the backend.
+     * The backend applies 24-hour deduplication using group_key.
+     * @param {string} title
+     * @param {string} message
+     * @param {'alert'|'reminder'|'request'} category
+     * @param {string|null} groupKey  - stable slug, e.g. 'low-stock-cement-42'
+     */
+    static createNotification(title, message, category, groupKey = null) {
+        return this.request('/notifications/create/', {
+            method: 'POST',
+            body: JSON.stringify({
+                title,
+                message,
+                category,
+                group_key: groupKey,
+            }),
+        });
+    }
+
     static getNotificationSummary() {
         return this.request('/notifications/summary/');
     }
 
+    /** PATCH /notifications/<uuid>/read/ — mark a single notification read */
     static markNotificationRead(id) {
         return this.request(`/notifications/${id}/read/`, {
             method: 'PATCH',
         });
     }
 
-    static clearAllNotifications() {
-        return this.request('/notifications/clear-all/', {
+    /** PATCH /notifications/read-all/ — bulk-mark all unread as read */
+    static markAllNotificationsRead() {
+        return this.request('/notifications/read-all/', {
+            method: 'PATCH',
+        });
+    }
+
+    /** DELETE /notifications/<uuid>/ — permanently remove one notification */
+    static deleteNotification(id) {
+        return this.request(`/notifications/${id}/`, {
             method: 'DELETE',
         });
     }

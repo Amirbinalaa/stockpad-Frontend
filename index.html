@@ -1685,13 +1685,15 @@
   <div id="notificationCenter" class="notification-center" style="display: none;">
     <div class="notification-header">
       <h3><i class="fas fa-bell"></i> Notifications</h3>
-      <button id="clearAllNotifications" class="clear-all-btn">Clear All</button>
+      <button id="markAllNotificationsRead" class="clear-all-btn mark-all-read-btn">
+        <i class="fas fa-check-double"></i> Mark All as Read
+      </button>
     </div>
     <div class="notification-tabs">
       <button class="tab-btn active" data-tab="all">All</button>
-      <button class="tab-btn" data-tab="alerts">Alerts</button>
-      <button class="tab-btn" data-tab="reminders">Reminders</button>
-      <button class="tab-btn" data-tab="requests">Requests</button>
+      <button class="tab-btn" data-tab="alert">Alerts</button>
+      <button class="tab-btn" data-tab="reminder">Reminders</button>
+      <button class="tab-btn" data-tab="request">Requests</button>
     </div>
     <div class="notification-list" id="notificationList"></div>
     <div class="notification-empty" id="notificationEmpty" style="display: none;">

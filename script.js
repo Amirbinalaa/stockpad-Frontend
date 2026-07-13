@@ -50,7 +50,7 @@ async function loadApp() {
     showAppScreen();
     renderDashboard();
     populateMaterialSelects();
-    checkNotifications();
+    checkNotifications(); // async — fires backend calls, does not block app render
     loadProfileForm();
 
     // Requests Event Listeners
@@ -124,40 +124,64 @@ async function loadApp() {
 }
 
 // ==================== NOTIFICATION CHECKS ====================
-function checkNotifications() {
-    if (!notificationSystem) return;
+/**
+ * Scans loaded materials and sends alert/reminder notifications to the backend.
+ * The backend's create_or_group() method applies a 24-hour dedup guard via
+ * group_key, so calling this on every login never creates duplicate rows.
+ */
+async function checkNotifications() {
+    if (typeof ApiService === 'undefined') return;
     const materials = getMaterials();
+    if (!materials || materials.length === 0) return;
     const now = new Date();
 
+    const jobs = [];
+
     materials.forEach(material => {
-        // LOW STOCK ALERT
-        const maxQty = material.maxQty || 100;
-        const percent = Math.min((material.qty / maxQty) * 100, 100); // cap at 100%
+        const materialSlug = String(material.id)
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '-');
+
+        // ── LOW STOCK ALERT ──────────────────────────────────────────────
+        const maxQty    = material.maxQty || 100;
+        const percent   = Math.min((material.qty / maxQty) * 100, 100);
         const threshold = (material.lowStockThreshold != null && material.lowStockThreshold > 0)
             ? material.lowStockThreshold
             : 30;
 
         if (percent <= threshold) {
-            notificationSystem.add(
-                '⚠️ Low Stock Alert',
-                `${material.name} is at ${percent.toFixed(1)}% — below the ${threshold}% threshold.`,
-                'alert'
+            jobs.push(
+                ApiService.createNotification(
+                    '⚠️ Low Stock Alert',
+                    `${material.name} is at ${percent.toFixed(1)}% — below the ${threshold}% threshold.`,
+                    'alert',
+                    `low-stock-${materialSlug}`
+                ).catch(() => {}) // silent — don't block UI on notif failure
             );
         }
 
-        // REMINDER — unused for 30+ days
+        // ── INACTIVITY REMINDER ───────────────────────────────────────────
         if (material.lastUpdated) {
             const lastUpdated = new Date(material.lastUpdated);
-            const daysSince = Math.floor((now - lastUpdated) / (1000 * 60 * 60 * 24));
+            const daysSince   = Math.floor((now - lastUpdated) / 86400000);
             if (daysSince >= 30) {
-                notificationSystem.add(
-                    '🕐 Inactivity Reminder',
-                    `${material.name} hasn't been updated in ${daysSince} days.`,
-                    'reminder'
+                jobs.push(
+                    ApiService.createNotification(
+                        '🕐 Inactivity Reminder',
+                        `${material.name} hasn't been updated in ${daysSince} days.`,
+                        'reminder',
+                        `inactivity-${materialSlug}`
+                    ).catch(() => {})
                 );
             }
         }
     });
+
+    // Fire all requests concurrently, then refresh the bell badge
+    await Promise.allSettled(jobs);
+    if (notificationSystem) {
+        await notificationSystem.updateBadge();
+    }
 }
 
 // ==================== SPLASH DONE EVENT ====================
@@ -749,57 +773,77 @@ if (exportXlsxBtn) {
 // ==================== NOTIFICATION SYSTEM ====================
 class NotificationSystem {
     constructor() {
-        this.notifications = [];
-        this.currentPage   = 'all';
+        this.notifications = []; // Client-side cache of all notifications
+        this.currentTab    = 'all';
         this._loading      = false;
         this.init();
     }
 
+    // ── DOM wiring ─────────────────────────────────────────────────────────
     init() {
-        this.center    = document.getElementById('notificationCenter');
-        this.bellBtn   = document.getElementById('globalNotificationBtn');
-        this.list      = document.getElementById('notificationList');
-        this.empty     = document.getElementById('notificationEmpty');
-        this.clearBtn  = document.getElementById('clearAllNotifications');
-        this.tabBtns   = document.querySelectorAll('.tab-btn');
+        this.center      = document.getElementById('notificationCenter');
+        this.bellBtn     = document.getElementById('globalNotificationBtn');
+        this.list        = document.getElementById('notificationList');
+        this.empty       = document.getElementById('notificationEmpty');
+        this.markAllBtn  = document.getElementById('markAllNotificationsRead');
+        this.tabBtns     = document.querySelectorAll('.tab-btn');
 
         this.bellBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(); });
-        document.addEventListener('click', (e) => {
-            if (this.center && !this.center.contains(e.target) && !this.bellBtn?.contains(e.target)) this.hide();
-        });
-        this.tabBtns.forEach(btn => btn.addEventListener('click', () => this.switchTab(btn.dataset.tab)));
-        this.clearBtn?.addEventListener('click', () => this.clearAll());
 
+        document.addEventListener('click', (e) => {
+            if (
+                this.center &&
+                !this.center.contains(e.target) &&
+                !this.bellBtn?.contains(e.target)
+            ) this.hide();
+        });
+
+        this.tabBtns.forEach(btn =>
+            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab))
+        );
+
+        this.markAllBtn?.addEventListener('click', () => this.markAllAsRead());
+
+        // Initial fetch on sign-in / app load (non-blocking)
         this.refresh();
     }
 
+    // ── API helpers ─────────────────────────────────────────────────────────
+
+    /** Normalise an API notification object into a flat client-side shape */
     _mapFromApi(item) {
         return {
-            id: item.id,
-            title: item.title,
-            message: item.message,
-            type: item.category,
-            timestamp: new Date(item.created_at),
-            read: item.is_read,
+            id:        String(item.id),          // UUID — keep as string
+            title:     item.title,
+            message:   item.message,
+            category:  item.category,            // 'alert' | 'reminder' | 'request'
+            read:      item.is_read,
+            groupKey:  item.group_key || null,
+            count:     item.count || 1,
+            timestamp: new Date(item.updated_at || item.created_at),
         };
     }
 
+    /** Pull the latest list from the server and update the local cache */
     async refresh() {
         if (this._loading) return;
         this._loading = true;
         try {
-            const data = await ApiService.getNotifications();
+            const data  = await ApiService.getNotifications();
             const items = Array.isArray(data) ? data : (data.results || []);
             this.notifications = items.map(n => this._mapFromApi(n));
             await this.updateBadge();
             if (this.center?.style.display === 'block') this.render();
         } catch (e) {
-            console.error('Failed to load notifications:', e);
+            if (!ApiService.isSessionExpiredError(e)) {
+                console.error('Failed to load notifications:', e);
+            }
         } finally {
             this._loading = false;
         }
     }
 
+    // ── Panel open / close ──────────────────────────────────────────────────
     toggle() { this.center?.style.display === 'block' ? this.hide() : this.show(); }
 
     async show() {
@@ -807,121 +851,204 @@ class NotificationSystem {
         this.center.style.display = 'block';
         await this.refresh();
         this.render();
-        await this.markAllRead();
     }
 
     hide() { if (this.center) this.center.style.display = 'none'; }
 
+    // ── Tab switching ───────────────────────────────────────────────────────
     switchTab(tab) {
-        this.currentPage = tab;
+        this.currentTab = tab;
         this.tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         this.render();
     }
 
-    add(title, message, type = 'info') {
-        let toastType = 'info';
-        
-        // Support inverted parameter bounds
-        if (['alert', 'reminder', 'requests', 'info', 'success', 'error'].includes(title)) {
-            const temp = title;
-            title = message;
-            message = type;
-            type = temp;
-        }
-        
-        if (type === 'alert' || type === 'error') toastType = 'error';
-        else if (type === 'success' || type === 'requests') toastType = 'success';
-        
-        // Dynamically create and inject toast notification (4 seconds dismiss delay)
-        showNotification(title, message, toastType, 4000);
-        this.refresh();
-    }
-
+    // ── Badge (bell icon counter) ───────────────────────────────────────────
     async updateBadge() {
         const indicator = document.getElementById('globalNotificationIndicator');
         const badge     = indicator?.querySelector('.notification-badge');
         if (!indicator || !badge) return;
 
+        let count = 0;
         try {
             const counts = await ApiService.getNotificationSummary();
-            const count  = counts.all || 0;
-            indicator.style.display = count > 0 ? 'block' : 'none';
-            badge.textContent       = count > 99 ? '99+' : count;
-        } catch (e) {
-            const count = this.notifications.filter(n => !n.read).length;
-            indicator.style.display = count > 0 ? 'block' : 'none';
-            badge.textContent       = count > 99 ? '99+' : count;
+            count = counts.all || 0;
+        } catch {
+            // Fallback: count from local cache
+            count = this.notifications.filter(n => !n.read).length;
         }
+
+        indicator.style.display = count > 0 ? 'block' : 'none';
+        badge.textContent       = count > 99 ? '99+' : String(count);
     }
 
-    async markAllRead() {
-        const unread = this.notifications.filter(n => !n.read);
-        if (unread.length === 0) return;
-        try {
-            await Promise.all(unread.map(n => ApiService.markNotificationRead(n.id)));
-            await this.refresh();
-        } catch (e) {
-            console.error('Failed to mark notifications as read:', e);
-        }
-    }
+    // ── Mark all as read (single bulk request) ──────────────────────────────
+    async markAllAsRead() {
+        const hasUnread = this.notifications.some(n => !n.read);
+        if (!hasUnread) return;
 
-    async clearAll() {
         try {
-            await ApiService.clearAllNotifications();
-            this.notifications = [];
+            await ApiService.markAllNotificationsRead();
+            // Update local cache immediately — no need for a full refresh
+            this.notifications.forEach(n => { n.read = true; });
             await this.updateBadge();
             this.render();
         } catch (e) {
-            console.error('Failed to clear notifications:', e);
+            console.error('Failed to mark all notifications as read:', e);
         }
     }
 
+    // ── Mark single notification read ───────────────────────────────────────
+    async markOneRead(id) {
+        try {
+            await ApiService.markNotificationRead(id);
+            const n = this.notifications.find(n => n.id === id);
+            if (n) n.read = true;
+            await this.updateBadge();
+            this.render();
+        } catch (e) {
+            if (!ApiService.isSessionExpiredError(e)) {
+                console.error('Failed to mark notification as read:', e);
+            }
+        }
+    }
+
+    // ── Delete a single notification ────────────────────────────────────────
+    async deleteOne(id) {
+        try {
+            await ApiService.deleteNotification(id);
+            this.notifications = this.notifications.filter(n => n.id !== id);
+            await this.updateBadge();
+            this.render();
+        } catch (e) {
+            console.error('Failed to delete notification:', e);
+        }
+    }
+
+    // ── Legacy add() shim ───────────────────────────────────────────────────
+    /**
+     * Used by the pending-requests poller and other callsites that still call
+     * notificationSystem.add().  Fires a toast and persists to the backend.
+     */
+    add(title, message, type = 'info') {
+        // Support historical inverted argument order
+        if (['alert', 'reminder', 'request', 'info', 'success', 'error'].includes(title)) {
+            [title, message, type] = [message, type, title];
+        }
+
+        // Map internal type strings to a notification category
+        const catMap = { alert: 'alert', reminder: 'reminder', request: 'request', requests: 'request' };
+        const category = catMap[type] || null;
+
+        // Toast
+        const toastType = (type === 'alert' || type === 'error') ? 'error'
+            : (type === 'success' || type === 'request' || type === 'requests') ? 'success'
+            : 'info';
+        showNotification(title, message, toastType, 4000);
+
+        // Backend persistence (fire-and-forget)
+        if (category) {
+            const slug = title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .slice(0, 80);
+            ApiService.createNotification(title, message, category, slug)
+                .then(() => this.updateBadge())
+                .catch(() => {});
+        }
+    }
+
+    // ── Render ──────────────────────────────────────────────────────────────
     render() {
         if (!this.list || !this.empty) return;
-        const filtered = this.currentPage === 'all'
+
+        const filtered = this.currentTab === 'all'
             ? this.notifications
-            : this.notifications.filter(n => n.type === this.currentPage);
+            : this.notifications.filter(n => n.category === this.currentTab);
+
         if (filtered.length === 0) {
-            this.list.style.display = 'none';
+            this.list.style.display  = 'none';
             this.empty.style.display = 'block';
             return;
         }
+
         this.list.style.display  = 'block';
         this.empty.style.display = 'none';
+
+        const ICONS = {
+            alert:    'fas fa-exclamation-triangle',
+            reminder: 'fas fa-clock',
+            request:  'fas fa-box-open',
+        };
+
         this.list.innerHTML = filtered.map(n => {
-            const dest = n.type === 'requests' ? 'requests' : 'dashboard';
+            const icon       = ICONS[n.category] || 'fas fa-bell';
+            const unreadCls  = !n.read ? 'unread' : '';
+            const countPill  = n.count > 1
+                ? `<span class="notif-count-pill">+${n.count - 1} more</span>`
+                : '';
             return `
-            <div class="notification-item ${n.type} ${!n.read ? 'unread' : ''}" data-id="${n.id}" data-dest="${dest}" style="cursor:pointer;">
-                <div class="notification-title">${n.title}</div>
-                <div class="notification-message">${n.message}</div>
-                <div class="notification-time">${this.timeAgo(n.timestamp)}</div>
+            <div class="notification-item ${n.category} ${unreadCls}"
+                 data-id="${n.id}"
+                 data-category="${n.category}">
+                <div class="notif-card-inner">
+                    <div class="notification-icon">
+                        <i class="${icon}"></i>
+                    </div>
+                    <div class="notification-details">
+                        <div class="notification-title">
+                            ${n.title}
+                            ${countPill}
+                        </div>
+                        <div class="notification-message">${n.message}</div>
+                        <div class="notification-time">${this._timeAgo(n.timestamp)}</div>
+                    </div>
+                    <button class="notif-delete-btn" data-id="${n.id}"
+                            title="Delete notification" aria-label="Delete">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </div>`;
         }).join('');
 
+        // ── Event listeners ──────────────────────────────────────────────
         this.list.querySelectorAll('.notification-item').forEach(el => {
-            el.addEventListener('click', async () => {
-                const id = parseInt(el.dataset.id, 10);
-                if (!Number.isNaN(id)) {
-                    try {
-                        await ApiService.markNotificationRead(id);
-                        await this.refresh();
-                    } catch (err) {
-                        console.error('Failed to mark notification as read:', err);
-                    }
-                }
-                const dest = el.dataset.dest;
+            el.addEventListener('click', async (e) => {
+                // Don't trigger card-click when the trash btn is clicked
+                if (e.target.closest('.notif-delete-btn')) return;
+
+                const id = el.dataset.id;
+                if (id) await this.markOneRead(id);
+
+                // Navigate to the relevant page
+                const cat  = el.dataset.category;
+                const dest = cat === 'request' ? 'requests' : 'dashboard';
                 this.hide();
                 const navItem = document.querySelector(`.nav-item[data-page="${dest}"]`);
                 if (navItem) navItem.click();
             });
         });
+
+        this.list.querySelectorAll('.notif-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const id = btn.dataset.id;
+                if (id) await this.deleteOne(id);
+            });
+        });
     }
 
-    timeAgo(ts) {
-        const d = Date.now() - new Date(ts);
-        const m = Math.floor(d / 60000), h = Math.floor(d / 3600000), days = Math.floor(d / 86400000);
-        if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`;
-        if (days < 7) return `${days}d ago`; return new Date(ts).toLocaleDateString();
+    // ── Relative timestamp ──────────────────────────────────────────────────
+    _timeAgo(ts) {
+        const diff = Date.now() - new Date(ts);
+        const m    = Math.floor(diff / 60000);
+        const h    = Math.floor(diff / 3600000);
+        const d    = Math.floor(diff / 86400000);
+        if (m < 1)  return 'Just now';
+        if (m < 60) return `${m}m ago`;
+        if (h < 24) return `${h}h ago`;
+        if (d < 7)  return `${d}d ago`;
+        return new Date(ts).toLocaleDateString();
     }
 }
 
