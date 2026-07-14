@@ -1679,6 +1679,31 @@
       </div>
     </div>
   </div>
+  <!-- Detailed Notification Modal -->
+  <div id="notificationDetailModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="notifDetailModalTitle">Notification Details</h3>
+        <button class="modal-close" id="closeNotifDetailModalBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 1rem;">
+          <span id="notifDetailModalCategoryBadge" class="badge" style="padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Category</span>
+          <span id="notifDetailModalTime" style="font-size: 0.8rem; color: var(--dark-wood-secondary); opacity: 0.8;">Time</span>
+        </div>
+        <div id="notifDetailModalMessage" style="font-size: 0.95rem; line-height: 1.6; color: var(--dark-wood); margin-bottom: 2rem; white-space: pre-line;">
+          Detailed message body...
+        </div>
+      </div>
+      <div class="modal-actions" style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <button class="btn-outline" id="closeNotifDetailModalFooterBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Dismiss</button>
+        <button class="btn-primary" id="notifDetailModalActionBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: none;">Take Action</button>
+      </div>
+    </div>
+  </div>
+
   <!-- NOTIFICATION CONTAINER -->
   <div id="notificationContainer" class="notification-container"></div>
   <!-- NOTIFICATION CENTER -->

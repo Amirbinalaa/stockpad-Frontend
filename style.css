@@ -753,6 +753,25 @@
     letter-spacing: 0.02em;
 }
 
+/* Inline crisp icons next to the title text */
+.notif-inline-icon {
+    margin-right: 6px;
+    font-size: 0.9rem;
+    background: transparent;
+    border: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+.notif-inline-icon.notif-alert-color {
+    color: var(--error-red);
+}
+.notif-inline-icon.notif-reminder-color {
+    color: var(--warning-yellow);
+}
+.notif-inline-icon.notif-request-color {
+    color: var(--success-green);
+}
+
 .notification-icon {
     width: 36px;
     height: 36px;

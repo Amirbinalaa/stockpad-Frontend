@@ -527,9 +527,6 @@ if (addMaterialForm) {
             if (materialImageInput) materialImageInput.value = '';
             renderDashboard();
             populateMaterialSelects();
-            if (notificationSystem) {
-                notificationSystem.add('✅ New Material Added', `"${name}" has been added to inventory.`, 'alert');
-            }
             showNotification('Success', `Material "${name}" added!`, 'success');
         } catch (error) {
             console.error('Failed to add material:', error);
@@ -788,7 +785,15 @@ class NotificationSystem {
         this.markAllBtn  = document.getElementById('markAllNotificationsRead');
         this.tabBtns     = document.querySelectorAll('.tab-btn');
 
-        this.bellBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(); });
+        this.bellBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+
+        // Prevent any click inside the notification center from auto-closing it
+        this.center?.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
 
         document.addEventListener('click', (e) => {
             if (
@@ -799,10 +804,16 @@ class NotificationSystem {
         });
 
         this.tabBtns.forEach(btn =>
-            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab))
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.switchTab(btn.dataset.tab);
+            })
         );
 
-        this.markAllBtn?.addEventListener('click', () => this.markAllAsRead());
+        this.markAllBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.markAllAsRead();
+        });
 
         // Initial fetch on sign-in / app load (non-blocking)
         this.refresh();
@@ -886,42 +897,147 @@ class NotificationSystem {
         const hasUnread = this.notifications.some(n => !n.read);
         if (!hasUnread) return;
 
+        // Optimistic save & update
+        const backup = this.notifications.map(n => ({ ...n }));
+        this.notifications.forEach(n => { n.read = true; });
+        this.render();
+        await this.updateBadge();
+
         try {
             await ApiService.markAllNotificationsRead();
-            // Update local cache immediately — no need for a full refresh
-            this.notifications.forEach(n => { n.read = true; });
-            await this.updateBadge();
-            this.render();
         } catch (e) {
-            console.error('Failed to mark all notifications as read:', e);
+            console.error('Failed to mark all notifications as read, rolling back:', e);
+            showNotification('Error', 'Failed to mark all as read. Syncing...', 'error');
+            this.notifications = backup;
+            this.render();
+            await this.updateBadge();
         }
     }
 
     // ── Mark single notification read ───────────────────────────────────────
     async markOneRead(id) {
+        const target = this.notifications.find(n => n.id === id);
+        if (!target || target.read) return;
+
+        // Optimistic save & update
+        const oldReadState = target.read;
+        target.read = true;
+        this.render();
+        await this.updateBadge();
+
         try {
             await ApiService.markNotificationRead(id);
-            const n = this.notifications.find(n => n.id === id);
-            if (n) n.read = true;
-            await this.updateBadge();
-            this.render();
         } catch (e) {
+            console.error(`Failed to mark notification ${id} read, rolling back:`, e);
             if (!ApiService.isSessionExpiredError(e)) {
-                console.error('Failed to mark notification as read:', e);
+                showNotification('Sync Error', 'Failed to update read status.', 'error');
             }
+            target.read = oldReadState;
+            this.render();
+            await this.updateBadge();
         }
     }
 
     // ── Delete a single notification ────────────────────────────────────────
     async deleteOne(id) {
+        const targetIndex = this.notifications.findIndex(n => n.id === id);
+        if (targetIndex === -1) return;
+
+        // Optimistic save & update
+        const backup = [...this.notifications];
+        this.notifications.splice(targetIndex, 1);
+        this.render();
+        await this.updateBadge();
+
         try {
             await ApiService.deleteNotification(id);
-            this.notifications = this.notifications.filter(n => n.id !== id);
-            await this.updateBadge();
-            this.render();
         } catch (e) {
-            console.error('Failed to delete notification:', e);
+            console.error(`Failed to delete notification ${id}, rolling back:`, e);
+            showNotification('Sync Error', 'Failed to delete notification.', 'error');
+            this.notifications = backup;
+            this.render();
+            await this.updateBadge();
         }
+    }
+
+    openDetailModal(notification) {
+        const modal = document.getElementById('notificationDetailModal');
+        if (!modal) return;
+
+        const titleEl    = document.getElementById('notifDetailModalTitle');
+        const badgeEl    = document.getElementById('notifDetailModalCategoryBadge');
+        const timeEl     = document.getElementById('notifDetailModalTime');
+        const messageEl  = document.getElementById('notifDetailModalMessage');
+        const actionBtn  = document.getElementById('notifDetailModalActionBtn');
+
+        if (titleEl) titleEl.textContent = notification.title;
+        if (messageEl) messageEl.textContent = notification.message;
+        if (timeEl) {
+            timeEl.textContent = notification.timestamp.toLocaleString();
+        }
+
+        if (badgeEl) {
+            badgeEl.textContent = notification.category;
+            badgeEl.className = 'badge'; // Reset classes
+            if (notification.category === 'alert') {
+                badgeEl.style.background = 'var(--error-red-light)';
+                badgeEl.style.color      = 'var(--error-red)';
+            } else if (notification.category === 'reminder') {
+                badgeEl.style.background = 'rgba(230, 168, 69, 0.15)';
+                badgeEl.style.color      = 'var(--warning-yellow)';
+            } else if (notification.category === 'request') {
+                badgeEl.style.background = 'var(--success-green-light)';
+                badgeEl.style.color      = 'var(--success-green)';
+            } else {
+                badgeEl.style.background = 'var(--beige-light)';
+                badgeEl.style.color      = 'var(--burnt-orange)';
+            }
+        }
+
+        // Configure dynamic action button
+        if (actionBtn) {
+            actionBtn.style.display = 'block';
+            let dest = '';
+            if (notification.category === 'alert') {
+                actionBtn.textContent = 'Go to Inventory / Restock';
+                dest = 'dashboard';
+            } else if (notification.category === 'reminder') {
+                actionBtn.textContent = 'Update Item Status';
+                dest = 'activity';
+            } else if (notification.category === 'request') {
+                actionBtn.textContent = 'Review Material Request';
+                dest = 'requests';
+            } else {
+                actionBtn.style.display = 'none';
+            }
+
+            // Bind click redirection
+            actionBtn.onclick = (e) => {
+                e.stopPropagation();
+                modal.classList.remove('active');
+                if (dest) {
+                    const navItem = document.querySelector(`.nav-item[data-page="${dest}"]`);
+                    if (navItem) navItem.click();
+                }
+            };
+        }
+
+        // Bind close buttons
+        const closeBtn = document.getElementById('closeNotifDetailModalBtn');
+        const footerCloseBtn = document.getElementById('closeNotifDetailModalFooterBtn');
+
+        const closeModal = (e) => {
+            e?.stopPropagation();
+            modal.classList.remove('active');
+        };
+
+        if (closeBtn) closeBtn.onclick = closeModal;
+        if (footerCloseBtn) footerCloseBtn.onclick = closeModal;
+        modal.onclick = (e) => {
+            if (e.target === modal) closeModal();
+        };
+
+        modal.classList.add('active');
     }
 
     // ── Legacy add() shim ───────────────────────────────────────────────────
@@ -992,11 +1108,9 @@ class NotificationSystem {
                  data-id="${n.id}"
                  data-category="${n.category}">
                 <div class="notif-card-inner">
-                    <div class="notification-icon">
-                        <i class="${icon}"></i>
-                    </div>
                     <div class="notification-details">
                         <div class="notification-title">
+                            <i class="${icon} notif-inline-icon notif-${n.category}-color"></i>
                             ${n.title}
                             ${countPill}
                         </div>
@@ -1014,18 +1128,18 @@ class NotificationSystem {
         // ── Event listeners ──────────────────────────────────────────────
         this.list.querySelectorAll('.notification-item').forEach(el => {
             el.addEventListener('click', async (e) => {
+                e.stopPropagation(); // prevent closing the parent dropdown center
                 // Don't trigger card-click when the trash btn is clicked
                 if (e.target.closest('.notif-delete-btn')) return;
 
                 const id = el.dataset.id;
-                if (id) await this.markOneRead(id);
-
-                // Navigate to the relevant page
-                const cat  = el.dataset.category;
-                const dest = cat === 'request' ? 'requests' : 'dashboard';
-                this.hide();
-                const navItem = document.querySelector(`.nav-item[data-page="${dest}"]`);
-                if (navItem) navItem.click();
+                if (id) {
+                    await this.markOneRead(id);
+                    const notif = this.notifications.find(n => n.id === id);
+                    if (notif) {
+                        this.openDetailModal(notif);
+                    }
+                }
             });
         });
 
