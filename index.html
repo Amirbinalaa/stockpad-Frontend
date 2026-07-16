@@ -1438,6 +1438,45 @@
             <button id="darkModeToggle" class="btn-outline">🌓 Toggle Dark Mode</button>
           </div>
         </div>
+        <div class="card">
+          <h4><i class="fas fa-users-cog"></i> Connected Engineers (Team Access Control)</h4>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.5rem;">
+            Directly whitelist engineers by their email addresses. Whitelisted engineers will be allowed to request stock from this warehouse using the external API.
+          </p>
+          
+          <!-- Connections List Table -->
+          <div class="table-responsive" style="margin-bottom: 1.5rem;">
+            <table class="requests-table" style="width: 100%;">
+              <thead>
+                <tr>
+                  <th>Engineer Email</th>
+                  <th>Granted On</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="connectedEngineersBody">
+                <tr>
+                  <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                    No connected engineers found.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Engineer Form -->
+          <form id="addEngineerForm" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+              <label for="engineerEmailInput">Enter Engineer Email</label>
+              <input type="email" id="engineerEmailInput" placeholder="engineer@company.com" required 
+                style="padding: 0.75rem 1rem; border-radius: 12px; border: 2px solid var(--border); background: var(--input-bg); color: var(--text-primary); width: 100%; transition: var(--transition);" />
+            </div>
+            <button type="submit" class="btn-primary" style="background: var(--orange); border-color: var(--orange); box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);">
+              Grant Access
+            </button>
+          </form>
+          <p id="engineerSaveMsg" style="margin-top:0.75rem; font-size:0.85rem; display:none;"></p>
+        </div>
       </div>
       <!-- REQUESTS PAGE -->
       <div id="requestsPage" class="page">

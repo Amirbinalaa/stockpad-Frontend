@@ -1230,6 +1230,9 @@ async function loadPreferences() {
     } catch (err) {
         console.error('Failed to load preferences:', err);
     }
+
+    // Load connected engineers list automatically when preferences are loaded
+    await loadConnectedEngineers();
 }
 
 async function savePreferences() {
@@ -1274,6 +1277,113 @@ function initSettingsPersistence() {
     if (btn && !btn.dataset.listenerAttached) {
         btn.dataset.listenerAttached = 'true';
         btn.addEventListener('click', savePreferences);
+    }
+
+    const addEngineerForm = document.getElementById('addEngineerForm');
+    if (addEngineerForm && !addEngineerForm.dataset.listenerAttached) {
+        addEngineerForm.dataset.listenerAttached = 'true';
+        addEngineerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const emailInput = document.getElementById('engineerEmailInput');
+            const email = emailInput ? emailInput.value.trim() : '';
+            const msg = document.getElementById('engineerSaveMsg');
+            if (!email) return;
+
+            const submitBtn = addEngineerForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.innerHTML : 'Grant Access';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Granting...';
+            }
+
+            try {
+                await ApiService.addConnectedEngineer(email);
+                if (emailInput) emailInput.value = '';
+                if (msg) {
+                    msg.textContent = '✅ Access granted successfully!';
+                    msg.style.color = 'var(--success-green)';
+                    msg.style.display = 'block';
+                    setTimeout(() => msg.style.display = 'none', 3000);
+                }
+                showNotification('Success', 'Engineer access granted!', 'success');
+                await loadConnectedEngineers();
+            } catch (err) {
+                console.error(err);
+                let errMsg = 'Failed to grant access.';
+                if (err && err.message) {
+                    errMsg = err.message;
+                } else if (err && typeof err === 'object') {
+                    // Handle validation errors from DRF serializer
+                    if (err.engineer_email) {
+                        errMsg = Array.isArray(err.engineer_email) ? err.engineer_email[0] : err.engineer_email;
+                    }
+                }
+                if (msg) {
+                    msg.textContent = `❌ ${errMsg}`;
+                    msg.style.color = 'var(--error-red)';
+                    msg.style.display = 'block';
+                    setTimeout(() => msg.style.display = 'none', 5000);
+                }
+                showNotification('Error', errMsg, 'error');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }
+        });
+    }
+}
+
+async function loadConnectedEngineers() {
+    const tbody = document.getElementById('connectedEngineersBody');
+    if (!tbody) return;
+
+    try {
+        const connections = await ApiService.getConnectedEngineers();
+        if (!connections || connections.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                        No connected engineers found.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = connections.map(conn => {
+            const grantedDate = formatDate(conn.created_at);
+            return `
+                <tr>
+                    <td style="vertical-align: middle;"><strong>${escapeHtml(conn.engineer_email)}</strong></td>
+                    <td style="vertical-align: middle;">${grantedDate}</td>
+                    <td style="text-align: right; vertical-align: middle;">
+                        <button type="button" class="btn-outline" onclick="revokeEngineerAccess(${conn.id})" 
+                                style="border-color: #EF4444; color: #EF4444; padding: 0.4rem 0.8rem; font-size: 0.8rem; margin: 0; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fas fa-user-slash"></i> Revoke Access
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+    } catch (err) {
+        console.error('Failed to load connected engineers:', err);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" style="text-align: center; color: var(--error-red); padding: 1.5rem;">
+                    Failed to load connected engineers.
+                </td>
+            </tr>`;
+    }
+}
+
+window.revokeEngineerAccess = async function(id) {
+    if (!confirm('Are you sure you want to revoke access for this engineer?')) return;
+    try {
+        await ApiService.deleteConnectedEngineer(id);
+        showNotification('Success', 'Access revoked successfully.', 'success');
+        await loadConnectedEngineers();
+    } catch (err) {
+        showNotification('Error', err.message || 'Failed to revoke access.', 'error');
     }
 }
 

@@ -610,6 +610,23 @@ class ApiService {
             method: 'DELETE',
         });
     }
+
+    static getConnectedEngineers() {
+        return this.request('/inventory/connections/');
+    }
+
+    static addConnectedEngineer(email) {
+        return this.request('/inventory/connections/', {
+            method: 'POST',
+            body: JSON.stringify({ engineer_email: email }),
+        });
+    }
+
+    static deleteConnectedEngineer(id) {
+        return this.request(`/inventory/connections/${id}/`, {
+            method: 'DELETE',
+        });
+    }
 }
 
 // ==================== DATA MANAGER ====================
