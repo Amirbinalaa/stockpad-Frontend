@@ -672,7 +672,7 @@ if (generateReportBtn) {
                         <td>${m?.name || 'Unknown'}</td>
                         <td><span style="color:${c};font-weight:600;">${t.type === 'in' ? '📥' : '📤'} ${t.type.toUpperCase()}</span></td>
                         <td>${t.qty} ${m?.unit || ''}</td>
-                        <td>${t.notes}</td>
+                        <td>${formatDate(t.date)} — ${t.notes || ''}</td>
                     </tr>`;
                 }).join('')}</tbody></table>`;
         }
