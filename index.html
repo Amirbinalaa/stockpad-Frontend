@@ -1624,39 +1624,24 @@
                   id="aiSeasonalityTab">Seasonality Trend</button>
               </div>
             </div>
-            <div id="aiChartContainer"
-              style="position: relative; width: 100%; height: 260px; background: rgba(0,0,0,0.02); border-left: 1px solid var(--beige-border); border-bottom: 1px solid var(--beige-border); overflow: hidden; border-radius: 8px;">
-              <div
-                style="position: absolute; left: 0; right: 0; top: 25%; border-top: 1px dashed var(--beige-border); opacity: 0.4;">
-              </div>
-              <div
-                style="position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--beige-border); opacity: 0.4;">
-              </div>
-              <div
-                style="position: absolute; left: 0; right: 0; top: 75%; border-top: 1px dashed var(--beige-border); opacity: 0.4;">
-              </div>
-              <svg id="aiDemandChartSvg" style="width: 100%; height: 100%; stroke-linecap: round;" viewBox="0 0 800 260"
-                preserveAspectRatio="none"></svg>
-              <div id="aiChartHoverTooltip"
-                style="display:none; position:absolute; background:var(--dark-wood); color:var(--cream-bg); padding:0.45rem 0.65rem; border-radius:8px; font-size:0.65rem; z-index:12; pointer-events:none; max-width:220px; border:1px solid var(--beige-border);">
-              </div>
-              <div id="aiChartPeakTooltip"
-                style="position: absolute; top: 12px; right: 12px; background: var(--dark-wood); color: var(--cream-bg); padding: 0.5rem 0.75rem; border-radius: 10px; font-size: 0.7rem; box-shadow: var(--shadow-md); z-index: 10; border: 1px solid var(--beige-border);">
-                <span id="aiChartPeakTitle" style="font-weight: bold; color: var(--burnt-orange);">Peak Demand
-                  Predicted</span><br />
-                <span id="aiChartPeakItem">Item: Loading predictions...</span><br />
-                <span id="aiChartPeakDate"></span><br />
+            <div id="aiChartContainer" class="ai-demand-chart-wrap">
+              <div id="demand-chart" class="ai-demand-chart-canvas" role="img"
+                aria-label="Predictive material demand chart"></div>
+              <div id="aiChartPeakTooltip" class="ai-demand-peak-card">
+                <span id="aiChartPeakTitle" class="ai-demand-peak-title">Peak Demand Predicted</span>
+                <span id="aiChartPeakItem">Item: Loading predictions...</span>
+                <span id="aiChartPeakDate"></span>
                 <span id="aiChartPeakCapacity"></span>
               </div>
             </div>
-            <div style="display: flex; gap: 1.5rem; margin-top: 1rem; font-size: 0.75rem;">
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <div style="width: 12px; height: 3px; background: var(--burnt-orange); border-radius: 2px;"></div>
-                <span style="color: var(--dark-wood-secondary); font-weight: 500;">Predicted Demand</span>
+            <div class="ai-demand-chart-legend">
+              <div class="ai-demand-legend-item">
+                <span class="ai-demand-legend-swatch ai-demand-legend-swatch--demand"></span>
+                <span>Predicted Demand</span>
               </div>
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <div style="width: 12px; height: 3px; border-top: 2px dashed var(--dark-wood-secondary);"></div>
-                <span style="color: var(--dark-wood-secondary); font-weight: 500;">Safety Stock Baseline</span>
+              <div class="ai-demand-legend-item">
+                <span class="ai-demand-legend-swatch ai-demand-legend-swatch--baseline"></span>
+                <span>Safety Stock Baseline</span>
               </div>
             </div>
           </div>
@@ -1768,6 +1753,7 @@
   <!-- =============================================
        SCRIPTS
   ============================================= -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
   <script src="config.js"></script>
   <script src="api-service.js"></script>
   <script src="script.js"></script>

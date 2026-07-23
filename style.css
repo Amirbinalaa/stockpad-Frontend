@@ -4656,6 +4656,139 @@ overflow-y: auto !important;
     min-height: 320px;
 }
 
+/* Predictive Material Demand — ApexCharts */
+.ai-demand-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 260px;
+    height: 260px;
+    background: linear-gradient(180deg, rgba(30, 30, 30, 0.55) 0%, rgba(18, 18, 18, 0.35) 100%);
+    border: 1px solid var(--beige-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+[data-theme="light"] .ai-demand-chart-wrap {
+    background: linear-gradient(180deg, rgba(61, 47, 38, 0.04) 0%, rgba(253, 251, 247, 0.9) 100%);
+}
+
+.ai-demand-chart-canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 260px;
+}
+
+.ai-demand-chart-canvas .apexcharts-canvas,
+.ai-demand-chart-canvas .apexcharts-svg {
+    background: transparent !important;
+}
+
+.ai-demand-peak-card {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-width: min(240px, 42%);
+    padding: 0.55rem 0.75rem;
+    background: rgba(255, 255, 255, 0.96);
+    color: #1a1a1a;
+    border: 1px solid rgba(255, 107, 0, 0.22);
+    border-radius: 10px;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    pointer-events: none;
+}
+
+[data-theme="dark"] .ai-demand-peak-card {
+    background: rgba(30, 30, 30, 0.94);
+    color: #e5e5e5;
+    border-color: rgba(255, 107, 0, 0.35);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.ai-demand-peak-title {
+    font-weight: 700;
+    color: #FF6B00;
+}
+
+.ai-demand-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: var(--dark-wood-secondary);
+    font-weight: 500;
+}
+
+.ai-demand-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ai-demand-legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+}
+
+.ai-demand-legend-swatch--demand {
+    background: #FF6B00;
+}
+
+.ai-demand-legend-swatch--baseline {
+    height: 0;
+    border-top: 2px dashed var(--dark-wood-secondary);
+    background: transparent;
+}
+
+.ai-demand-chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 260px;
+    color: var(--dark-wood-secondary);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.ai-demand-tooltip-card {
+    padding: 0.65rem 0.8rem;
+    background: #ffffff;
+    color: #1a1a1a;
+    border: 1px solid rgba(255, 107, 0, 0.18);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+    font-size: 0.68rem;
+    line-height: 1.5;
+    min-width: 180px;
+    max-width: 240px;
+}
+
+.ai-demand-tooltip-card strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+}
+
+.ai-demand-tooltip-card span {
+    display: block;
+    color: #5c5c5c;
+}
+
+.ai-demand-tooltip-card .ai-demand-tooltip-metric {
+    margin-top: 0.25rem;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
 /* Stock Labels styling */
 .label-carousel {
     display: flex;

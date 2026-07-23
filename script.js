@@ -2093,22 +2093,255 @@ function renderAIInsightsKPIs(metrics) {
 
 let _aiChartMode = 'forecast';
 let _aiChartsPayload = null;
+let _aiDemandChart = null;
+let _aiChartResizeObserver = null;
+let _aiChartThemeObserver = null;
 
-function _chartCoords(points, width, height, pad) {
-    const vals = points.map(p => Number(p.value) || 0);
-    const maxVal = Math.max(...vals, 1);
-    const innerW = width - pad * 2;
-    const innerH = height - pad * 2;
-    return points.map((p, i) => ({
-        ...p,
-        x: pad + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW),
-        y: pad + innerH - ((Number(p.value) || 0) / maxVal) * innerH,
-    }));
+const DEMAND_CHART_ORANGE = '#FF6B00';
+
+function getDemandChartDataset(charts, mode) {
+    if (!charts) return null;
+    return mode === 'seasonality' ? charts.seasonality_trend : charts.demand_forecast;
 }
 
-function _pathFromCoords(coords) {
-    if (!coords.length) return '';
-    return coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+function getDemandChartPeakTitle(mode) {
+    return mode === 'seasonality' ? 'Seasonality Peak' : 'Peak Demand Predicted';
+}
+
+function isDemandChartDarkTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+function getDemandChartThemeTokens() {
+    const isDark = isDemandChartDarkTheme();
+    return {
+        isDark,
+        gridColor: isDark ? '#2d2d2d' : '#e8e0d8',
+        labelColor: isDark ? '#A0A0A0' : '#5c4a3d',
+        baselineColor: isDark ? '#A0A0A0' : '#5c4a3d',
+    };
+}
+
+function buildDemandChartSeries(dataset) {
+    const points = dataset?.points || [];
+    const demandData = points.map(p => Number(p.value) || 0);
+    const series = [{
+        name: 'Predicted Demand',
+        type: 'area',
+        data: demandData,
+    }];
+
+    const baseline = dataset?.baseline || [];
+    if (baseline.length) {
+        series.push({
+            name: 'Safety Stock Baseline',
+            type: 'line',
+            data: baseline.map(p => Number(p.value) || 0),
+        });
+    }
+
+    return series;
+}
+
+function getDemandPointPeakIndex(points) {
+    if (!points?.length) return -1;
+    let peakIdx = 0;
+    let peakVal = Number(points[0].value) || 0;
+    points.forEach((pt, idx) => {
+        const val = Number(pt.value) || 0;
+        if (val > peakVal) {
+            peakVal = val;
+            peakIdx = idx;
+        }
+    });
+    return peakIdx;
+}
+
+function buildDemandTooltipHtml(mode, dataset, dataPointIndex, series) {
+    const points = dataset?.points || [];
+    const pt = points[dataPointIndex];
+    if (!pt) return '';
+
+    const peak = dataset.peak || {};
+    const peakIdx = getDemandPointPeakIndex(points);
+    const atPeak = dataPointIndex === peakIdx;
+    const statusTitle = atPeak
+        ? getDemandChartPeakTitle(mode)
+        : (pt.label || 'Demand Point');
+    const sku = peak.sku || 'PORTFOLIO';
+    const itemName = peak.material_name || 'Portfolio aggregate';
+    const demandVal = series?.[0]?.[dataPointIndex] ?? pt.value;
+    const formattedDemand = Number(demandVal).toLocaleString(undefined, {
+        maximumFractionDigits: 1,
+    });
+
+    return `
+        <div class="ai-demand-tooltip-card">
+            <strong style="color: ${DEMAND_CHART_ORANGE};">${escapeHtml(statusTitle)}</strong>
+            <span>Item: ${escapeHtml(sku)} · ${escapeHtml(itemName)}</span>
+            <span>Peak date: ${escapeHtml(pt.date || peak.peak_date || '—')}</span>
+            <span class="ai-demand-tooltip-metric">Required capacity: ${formattedDemand} units</span>
+        </div>`;
+}
+
+function buildDemandChartOptions(mode, charts) {
+    const dataset = getDemandChartDataset(charts, mode);
+    const points = dataset?.points || [];
+    const theme = getDemandChartThemeTokens();
+
+    return {
+        chart: {
+            type: 'line',
+            height: '100%',
+            fontFamily: 'DM Sans, sans-serif',
+            background: 'transparent',
+            foreColor: theme.labelColor,
+            toolbar: { show: false },
+            zoom: { enabled: false },
+            animations: {
+                enabled: true,
+                easing: 'easeinout',
+                speed: 450,
+            },
+        },
+        series: buildDemandChartSeries(dataset),
+        colors: [DEMAND_CHART_ORANGE, theme.baselineColor],
+        stroke: {
+            curve: 'smooth',
+            width: [3, 2],
+            dashArray: [0, 6],
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shade: theme.isDark ? 'dark' : 'light',
+                type: 'vertical',
+                shadeIntensity: 0.35,
+                gradientToColors: [DEMAND_CHART_ORANGE],
+                opacityFrom: 0.42,
+                opacityTo: 0.03,
+                stops: [0, 85, 100],
+            },
+        },
+        dataLabels: { enabled: false },
+        markers: {
+            size: 5,
+            strokeWidth: 2,
+            strokeColors: DEMAND_CHART_ORANGE,
+            colors: ['#FFFFFF'],
+            hover: {
+                size: 7,
+                sizeOffset: 1,
+            },
+        },
+        xaxis: {
+            categories: points.map(p => p.label),
+            axisBorder: { show: false },
+            axisTicks: { show: false },
+            labels: {
+                style: { colors: theme.labelColor, fontSize: '11px' },
+            },
+            crosshairs: {
+                show: true,
+                stroke: {
+                    color: DEMAND_CHART_ORANGE,
+                    width: 1,
+                    dashArray: 4,
+                    opacity: 0.55,
+                },
+            },
+            tooltip: { enabled: false },
+        },
+        yaxis: {
+            labels: {
+                style: { colors: theme.labelColor, fontSize: '11px' },
+                formatter: (val) => Math.round(val).toLocaleString(),
+            },
+            crosshairs: {
+                show: true,
+                stroke: {
+                    color: DEMAND_CHART_ORANGE,
+                    width: 1,
+                    dashArray: 4,
+                    opacity: 0.55,
+                },
+            },
+        },
+        grid: {
+            borderColor: theme.gridColor,
+            strokeDashArray: 4,
+            xaxis: { lines: { show: false } },
+            yaxis: { lines: { show: true } },
+            padding: { left: 4, right: 16, top: 8, bottom: 0 },
+        },
+        legend: { show: false },
+        tooltip: {
+            shared: true,
+            intersect: false,
+            followCursor: true,
+            custom({ series, dataPointIndex }) {
+                return buildDemandTooltipHtml(mode, dataset, dataPointIndex, series);
+            },
+        },
+        theme: { mode: theme.isDark ? 'dark' : 'light' },
+    };
+}
+
+function destroyDemandChart() {
+    if (_aiChartResizeObserver) {
+        _aiChartResizeObserver.disconnect();
+        _aiChartResizeObserver = null;
+    }
+    if (_aiChartThemeObserver) {
+        _aiChartThemeObserver.disconnect();
+        _aiChartThemeObserver = null;
+    }
+    if (_aiDemandChart) {
+        _aiDemandChart.destroy();
+        _aiDemandChart = null;
+    }
+}
+
+function setupDemandChartResize(chart) {
+    const container = document.getElementById('demand-chart');
+    if (!container) return;
+
+    if (_aiChartResizeObserver) {
+        _aiChartResizeObserver.disconnect();
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+        _aiChartResizeObserver = new ResizeObserver(() => {
+            if (chart) chart.render();
+        });
+        _aiChartResizeObserver.observe(container);
+        return;
+    }
+
+    const onResize = () => { if (chart) chart.render(); };
+    window.addEventListener('resize', onResize);
+    _aiChartResizeObserver = {
+        disconnect() { window.removeEventListener('resize', onResize); },
+    };
+}
+
+function setupDemandChartThemeSync(chart) {
+    if (_aiChartThemeObserver) {
+        _aiChartThemeObserver.disconnect();
+    }
+
+    _aiChartThemeObserver = new MutationObserver(() => {
+        if (!chart || !_aiChartsPayload) return;
+        chart.updateOptions(
+            buildDemandChartOptions(_aiChartMode, _aiChartsPayload),
+            false,
+            true,
+        );
+    });
+    _aiChartThemeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
+    });
 }
 
 function updateAIChartPeakTooltip(peak, title) {
@@ -2117,7 +2350,13 @@ function updateAIChartPeakTooltip(peak, title) {
     const peakDate = document.getElementById('aiChartPeakDate');
     const peakCapacity = document.getElementById('aiChartPeakCapacity');
     const peakTooltip = document.getElementById('aiChartPeakTooltip');
-    if (!peak || !peakTooltip) return;
+    if (!peakTooltip) return;
+
+    if (!peak) {
+        peakTooltip.style.display = 'none';
+        return;
+    }
+
     if (peakTitle) peakTitle.textContent = title;
     if (peakItem) {
         const skuPart = peak.sku ? peak.sku + ' · ' : '';
@@ -2127,84 +2366,68 @@ function updateAIChartPeakTooltip(peak, title) {
     if (peakCapacity) {
         peakCapacity.textContent = 'Required capacity: ' + (peak.required_capacity ?? '—') + ' units';
     }
-    peakTooltip.style.display = 'block';
+    peakTooltip.style.display = 'flex';
 }
 
-function renderAIDemandChart(mode, charts) {
-    const svg = document.getElementById('aiDemandChartSvg');
-    const container = document.getElementById('aiChartContainer');
-    const hoverTip = document.getElementById('aiChartHoverTooltip');
-    if (!svg || !charts) return;
+function initDemandChart(charts, mode = _aiChartMode) {
+    const container = document.getElementById('demand-chart');
+    if (!container) return;
 
-    const dataset = mode === 'seasonality' ? charts.seasonality_trend : charts.demand_forecast;
-    if (!dataset?.points?.length) {
-        svg.innerHTML = '';
+    if (typeof ApexCharts === 'undefined') {
+        container.innerHTML = '<div class="ai-demand-chart-empty">Chart library failed to load.</div>';
         return;
     }
 
-    const W = 800;
-    const H = 260;
-    const pad = 28;
-    const mainCoords = _chartCoords(dataset.points, W, H, pad);
-    const baselinePts = dataset.baseline?.length ? dataset.baseline : [];
-    const baselineCoords = baselinePts.length
-        ? _chartCoords(baselinePts, W, H, pad)
-        : [];
-
-    const mainPath = _pathFromCoords(mainCoords);
-    const basePath = baselineCoords.length ? _pathFromCoords(baselineCoords) : '';
-    const areaPath = mainPath
-        ? `${mainPath} L${mainCoords[mainCoords.length - 1].x},${H - pad} L${mainCoords[0].x},${H - pad} Z`
-        : '';
-
-    const markers = mainCoords.map((c, i) =>
-        `<circle class="ai-chart-marker" data-idx="${i}" cx="${c.x}" cy="${c.y}" r="6" fill="var(--burnt-orange)" stroke="#fff" stroke-width="2" style="cursor:pointer;opacity:${i === mainCoords.length - 1 ? 1 : 0.85};"/>`
-    ).join('');
-
-    svg.innerHTML = `
-        ${areaPath ? `<path d="${areaPath}" fill="var(--burnt-orange)" opacity="0.08" stroke="none"/>` : ''}
-        ${basePath ? `<path d="${basePath}" fill="none" stroke="var(--dark-wood-secondary)" stroke-width="2" stroke-dasharray="6 6" opacity="0.65"/>` : ''}
-        <path d="${mainPath}" fill="none" stroke="var(--burnt-orange)" stroke-width="3"/>
-        ${markers}
-    `;
-
-    const title = mode === 'seasonality' ? 'Seasonality Peak' : 'Peak Demand Predicted';
-    updateAIChartPeakTooltip(dataset.peak, title);
-
-    const peakIdx = mainCoords.length
-        ? mainCoords.reduce((best, c, i) => (
-            (Number(c.value) || 0) > (Number(mainCoords[best]?.value) || 0) ? i : best
-        ), 0)
-        : -1;
-
-    if (hoverTip && container) {
-        svg.querySelectorAll('.ai-chart-marker').forEach(marker => {
-            marker.addEventListener('mouseenter', () => {
-                const idx = parseInt(marker.dataset.idx, 10);
-                const pt = mainCoords[idx];
-                if (!pt) return;
-                const peak = dataset.peak || {};
-                const atPeak = idx === peakIdx;
-                const sku = atPeak && peak.sku ? peak.sku : (peak.sku || 'PORTFOLIO');
-                const itemName = atPeak && peak.material_name
-                    ? peak.material_name
-                    : (peak.material_name || 'Portfolio aggregate');
-                hoverTip.style.display = 'block';
-                hoverTip.innerHTML = `<strong style="color:var(--burnt-orange);">${escapeHtml(pt.label)}</strong><br/>
-                    SKU: ${escapeHtml(sku)}<br/>
-                    ${escapeHtml(itemName)}<br/>
-                    Date: ${escapeHtml(pt.date || '—')}<br/>
-                    Capacity: ${Number(pt.value).toLocaleString()} units`;
-                const rect = container.getBoundingClientRect();
-                const svgRect = svg.getBoundingClientRect();
-                const relX = ((pt.x / W) * svgRect.width);
-                const relY = ((pt.y / H) * svgRect.height);
-                hoverTip.style.left = Math.min(rect.width - 200, Math.max(8, relX)) + 'px';
-                hoverTip.style.top = Math.max(8, relY - 10) + 'px';
-            });
-            marker.addEventListener('mouseleave', () => { hoverTip.style.display = 'none'; });
-        });
+    const dataset = getDemandChartDataset(charts, mode);
+    if (!dataset?.points?.length) {
+        destroyDemandChart();
+        container.innerHTML = '<div class="ai-demand-chart-empty">No forecast data available.</div>';
+        return;
     }
+
+    container.innerHTML = '';
+    destroyDemandChart();
+
+    const options = buildDemandChartOptions(mode, charts);
+    _aiDemandChart = new ApexCharts(container, options);
+    _aiDemandChart.render();
+    setupDemandChartResize(_aiDemandChart);
+    setupDemandChartThemeSync(_aiDemandChart);
+    updateAIChartPeakTooltip(dataset.peak, getDemandChartPeakTitle(mode));
+}
+
+function updateDemandChartMode(mode, charts) {
+    const dataset = getDemandChartDataset(charts, mode);
+    const container = document.getElementById('demand-chart');
+    if (!container) return;
+
+    if (!dataset?.points?.length) {
+        destroyDemandChart();
+        container.innerHTML = '<div class="ai-demand-chart-empty">No forecast data available.</div>';
+        return;
+    }
+
+    if (!_aiDemandChart) {
+        initDemandChart(charts, mode);
+        return;
+    }
+
+    if (container.querySelector('.ai-demand-chart-empty')) {
+        container.innerHTML = '';
+        initDemandChart(charts, mode);
+        return;
+    }
+
+    _aiDemandChart.updateSeries(buildDemandChartSeries(dataset), true);
+    _aiDemandChart.updateOptions({
+        xaxis: { categories: dataset.points.map(p => p.label) },
+        tooltip: {
+            custom({ series, dataPointIndex }) {
+                return buildDemandTooltipHtml(mode, dataset, dataPointIndex, series);
+            },
+        },
+    }, false, true);
+    updateAIChartPeakTooltip(dataset.peak, getDemandChartPeakTitle(mode));
 }
 
 function setupAIChartTabs(charts) {
@@ -2216,7 +2439,11 @@ function setupAIChartTabs(charts) {
         _aiChartMode = mode;
         forecastTab.classList.toggle('active', mode === 'forecast');
         seasonalityTab.classList.toggle('active', mode === 'seasonality');
-        renderAIDemandChart(mode, charts);
+        if (_aiDemandChart && charts) {
+            updateDemandChartMode(mode, charts);
+        } else {
+            initDemandChart(charts, mode);
+        }
     };
 
     if (!forecastTab.dataset.listener) {
@@ -2224,6 +2451,7 @@ function setupAIChartTabs(charts) {
         forecastTab.addEventListener('click', () => activate('forecast'));
         seasonalityTab.addEventListener('click', () => activate('seasonality'));
     }
+
     activate(_aiChartMode);
 }
 
