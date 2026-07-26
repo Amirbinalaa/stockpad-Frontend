@@ -759,6 +759,50 @@
       color: #EF4444;
     }
 
+    /* Pagination controls for the Requests table */
+    .req-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      border-top: 1px solid var(--beige-border);
+    }
+
+    .req-page-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1.5px solid var(--burnt-orange);
+      background: transparent;
+      color: var(--burnt-orange);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .req-page-btn:hover:not(.disabled) {
+      background: var(--burnt-orange);
+      color: white;
+    }
+
+    .req-page-btn.disabled,
+    .req-page-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .req-page-info {
+      font-size: 0.85rem;
+      color: var(--dark-wood-secondary);
+      min-width: 160px;
+      text-align: center;
+    }
+
     .req-action-btn {
       padding: 6px 12px;
       border-radius: 6px;
@@ -1537,6 +1581,8 @@
             <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
             <p>No material requests found matching this filter.</p>
           </div>
+          <!-- Pagination controls (injected by renderRequestsPagination()) -->
+          <div id="requestsPaginationContainer"></div>
         </div>
       </div>
       <!-- AI INSIGHTS PAGE -->

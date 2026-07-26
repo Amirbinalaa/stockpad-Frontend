@@ -60,7 +60,7 @@ async function loadApp() {
             document.querySelectorAll('.requests-filter-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             currentRequestFilter = tab.dataset.status;
-            renderRequestsTable();
+            loadRequestsPage(1); // Re-fetch from server with new status filter
         });
     });
     document.getElementById('cancelReviewBtn')?.addEventListener('click', closeReviewModal);
@@ -79,7 +79,10 @@ async function loadApp() {
         isPendingFetching = true;
         try {
             const requests = await dataManager.loadMaterialRequests('pending');
-            const count = requests.length;
+            // Use the `count` from the paginated metadata for the true total pending count
+            const count = dataManager.requestsPagination
+                ? dataManager.requestsPagination.count
+                : requests.length;
             const badge = document.querySelector('#requestsNotificationIndicator .notification-badge');
             const indicator = document.getElementById('requestsNotificationIndicator');
             if (indicator && badge) {
@@ -1663,37 +1666,57 @@ let allRequests = [];
 let currentRequestFilter = 'all';
 let currentActionRequestId = null;
 let currentActionType = null;
+// Pagination state for the Requests table
+let requestsCurrentPage = 1;
+let requestsPagination = { count: 0, next: null, previous: null };
 
-async function loadRequestsPage() {
+async function loadRequestsPage(page = 1) {
     const tableBody = document.getElementById('requestsTableBody');
     if (!tableBody) return;
 
     try {
-        allRequests = await dataManager.loadMaterialRequests();
-        updateRequestStats();
+        // Server-side status filter — pass the current tab selection
+        const statusFilter = currentRequestFilter !== 'all' ? currentRequestFilter : null;
+        allRequests = await dataManager.loadMaterialRequests(statusFilter, page);
+        requestsCurrentPage = page;
+        requestsPagination = { ...dataManager.requestsPagination };
+
+        // Fetch accurate per-status counts via 3 parallel status-filtered API calls.
+        // This is approach (a): use the `count` field from each status's paginated
+        // response so counters reflect ALL pages, not just the 20 currently displayed.
+        const counts = await dataManager.getRequestStatusCounts();
+        updateRequestStats(counts);
         renderRequestsTable();
+        renderRequestsPagination();
     } catch (e) {
         if (typeof ApiService !== 'undefined' && ApiService.isSessionExpiredError(e) && allRequests.length) {
             updateRequestStats();
             renderRequestsTable();
+            renderRequestsPagination();
             return;
         }
         console.error('Failed to load requests:', e);
         if (allRequests.length) {
             updateRequestStats();
             renderRequestsTable();
+            renderRequestsPagination();
             return;
         }
         showNotification('Error', 'Failed to load material requests.', 'error');
     }
 }
+// Expose so pagination button onclick handlers can reach it
+window.loadRequestsPage = loadRequestsPage;
 
-function updateRequestStats() {
-    const stats = {
+function updateRequestStats(counts) {
+
+    // If pre-fetched counts are provided (accurate cross-page totals), use them.
+    // Fallback to client-side counting from the current page only (used on error recovery).
+    const stats = counts || {
         pending: allRequests.filter(r => r.status === 'pending').length,
         approved: allRequests.filter(r => r.status === 'approved').length,
         denied: allRequests.filter(r => r.status === 'denied').length,
-        total: allRequests.length
+        total: allRequests.length,
     };
 
     const sPending = document.getElementById('reqStatPending');
@@ -1712,9 +1735,9 @@ function renderRequestsTable() {
     const emptyState = document.getElementById('requestsEmptyState');
     if (!tbody || !emptyState) return;
 
-    const filtered = currentRequestFilter === 'all' 
-        ? allRequests 
-        : allRequests.filter(r => r.status === currentRequestFilter);
+    // allRequests is already server-filtered by status when a filter tab is active,
+    // so we show the full array here rather than re-filtering client-side.
+    const filtered = allRequests;
 
     if (filtered.length === 0) {
         tbody.innerHTML = '';
@@ -1749,6 +1772,51 @@ function renderRequestsTable() {
             </tr>
         `;
     }).join('');
+}
+
+function renderRequestsPagination() {
+    const container = document.getElementById('requestsPaginationContainer');
+    if (!container) return;
+
+    const { count, next, previous } = requestsPagination;
+    const pageSize = 20; // matches backend StandardResultsSetPagination.page_size
+    const totalPages = Math.max(1, Math.ceil(count / pageSize));
+    const currentPage = requestsCurrentPage;
+
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const prevDisabled = !previous;
+    const nextDisabled = !next;
+
+    container.innerHTML = `
+        <div class="req-pagination">
+            <button
+                id="reqPrevBtn"
+                class="req-page-btn${prevDisabled ? ' disabled' : ''}"
+                ${prevDisabled ? 'disabled' : ''}
+                onclick="loadRequestsPage(${currentPage - 1})"
+                aria-label="Previous page"
+            >
+                <i class="fas fa-chevron-left"></i> Previous
+            </button>
+            <span class="req-page-info">
+                Page <strong>${currentPage}</strong> of <strong>${totalPages}</strong>
+                &nbsp;&mdash;&nbsp; ${count} total
+            </span>
+            <button
+                id="reqNextBtn"
+                class="req-page-btn${nextDisabled ? ' disabled' : ''}"
+                ${nextDisabled ? 'disabled' : ''}
+                onclick="loadRequestsPage(${currentPage + 1})"
+                aria-label="Next page"
+            >
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    `;
 }
 
 window.openReviewModal = function(id, action) {
@@ -1806,6 +1874,8 @@ async function handleReviewAction() {
             : 'Request denied successfully.';
         showNotification('Success', successMsg, 'success');
         closeReviewModal();
+        // Bust the 30s counts cache so the next load reflects the status change immediately
+        dataManager.invalidateCountsCache();
         await loadRequestsPage();
     } catch (e) {
         console.error('Action failed:', e);

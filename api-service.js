@@ -530,11 +530,12 @@ class ApiService {
         return this.request('/inventory/dashboard/');
     }
 
-    static getMaterialRequests(status = null) {
-        const endpoint = status
-            ? `/inventory/requests/list/?status=${encodeURIComponent(status)}`
-            : '/inventory/requests/list/';
-        return this.request(endpoint);
+    static getMaterialRequests(status = null, page = 1) {
+        const params = new URLSearchParams();
+        if (status) params.set('status', status);
+        if (page > 1) params.set('page', String(page));
+        const query = params.toString() ? `?${params.toString()}` : '';
+        return this.request(`/inventory/requests/list/${query}`);
     }
 
     static reviewMaterialRequest(id, status, reviewNotes = '') {
@@ -636,6 +637,9 @@ class DataManager {
         this.materials = [];
         this.transactions = [];
         this.materialRequests = [];
+        // 30-second TTL cache for per-status request counts
+        this._countsCache  = null;     // { counts, expiresAt } — null means stale
+        this._COUNTS_TTL_MS = 30_000;
     }
 
     async initialize() {
@@ -716,10 +720,59 @@ class DataManager {
         return transaction;
     }
 
-    async loadMaterialRequests(status = null) {
-        const data = await ApiService.getMaterialRequests(status);
-        this.materialRequests = data.map((item) => this._toFrontendRequest(item));
+    async loadMaterialRequests(status = null, page = 1) {
+        const data = await ApiService.getMaterialRequests(status, page);
+        // Handle both legacy plain array and new paginated {count, next, previous, results}
+        const items = Array.isArray(data) ? data : (data.results || []);
+        this.materialRequests = items.map((item) => this._toFrontendRequest(item));
+        this.requestsPagination = {
+            count: Array.isArray(data) ? items.length : (data.count || items.length),
+            next: Array.isArray(data) ? null : (data.next || null),
+            previous: Array.isArray(data) ? null : (data.previous || null),
+            currentPage: page,
+        };
         return this.materialRequests;
+    }
+
+    /**
+     * Fetch accurate per-status counts using the `count` field from paginated responses.
+     * Makes 3 parallel requests (pending, approved, denied) — each returns the total
+     * for that status across ALL pages, not just the current page.
+     *
+     * Results are cached for 30 seconds to avoid redundant network calls on rapid
+     * filter-tab clicks. The cache is explicitly invalidated after any approve/deny
+     * action so counters update immediately when something actually changes.
+     *
+     * @param {boolean} forceRefresh - bypass the cache unconditionally
+     */
+    async getRequestStatusCounts(forceRefresh = false) {
+        const now = Date.now();
+        if (
+            !forceRefresh &&
+            this._countsCache &&
+            now < this._countsCache.expiresAt
+        ) {
+            return this._countsCache.counts; // serve from cache
+        }
+
+        const [pending, approved, denied] = await Promise.all([
+            ApiService.getMaterialRequests('pending'),
+            ApiService.getMaterialRequests('approved'),
+            ApiService.getMaterialRequests('denied'),
+        ]);
+        const extract = (d) => Array.isArray(d) ? d.length : (d.count || 0);
+        const p = extract(pending);
+        const a = extract(approved);
+        const d = extract(denied);
+        const counts = { pending: p, approved: a, denied: d, total: p + a + d };
+
+        this._countsCache = { counts, expiresAt: now + this._COUNTS_TTL_MS };
+        return counts;
+    }
+
+    /** Wipe the counts cache. Call immediately after any action that changes a request's status. */
+    invalidateCountsCache() {
+        this._countsCache = null;
     }
 
     async approveMaterialRequest(id, reviewNotes = '') {
