@@ -552,13 +552,20 @@
     }
 
     /* =============================================
-       GLOBAL THEME TOGGLE
+       GLOBAL HEADER CONTROLS (THEME & NOTIFICATIONS)
     ============================================= */
-    #global-theme-btn {
+    .top-header-controls {
       position: fixed;
       top: 16px;
       right: 16px;
       z-index: 10000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .top-control-btn {
+      position: relative;
       width: 42px;
       height: 42px;
       border-radius: 50%;
@@ -571,19 +578,27 @@
       justify-content: center;
       box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
       transition: background var(--transition), border-color var(--transition),
-        color var(--transition), transform 0.15s;
+        color var(--transition), transform 0.15s, box-shadow var(--transition);
+      font-size: 1rem;
     }
 
-    #global-theme-btn:hover {
+    .top-control-btn:hover {
       border-color: var(--orange);
       color: var(--orange);
       transform: scale(1.08);
       box-shadow: 0 4px 18px rgba(249, 115, 22, 0.25);
     }
 
-    #global-theme-btn svg {
+    .top-control-btn svg {
       width: 18px;
       height: 18px;
+    }
+
+    .top-control-btn .notification-indicator {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      z-index: 10;
     }
 
     /* =============================================
@@ -885,23 +900,31 @@
 </head>
 
 <body>
-  <!-- Global dark mode toggle -->
-  <button id="global-theme-btn" aria-label="Toggle dark mode">
-    <svg id="g-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
-    <svg id="g-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-      <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-    </svg>
-  </button>
+  <!-- Global header controls (Notifications & Theme Toggle) -->
+  <div class="top-header-controls" id="topHeaderControls">
+    <button id="globalNotificationBtn" class="top-control-btn" aria-label="Notifications" aria-expanded="false" title="Notifications">
+      <i class="fas fa-bell"></i>
+      <div class="notification-indicator" id="globalNotificationIndicator" style="display: none;">
+        <span class="notification-badge">0</span>
+      </div>
+    </button>
+    <button id="global-theme-btn" class="top-control-btn" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg id="g-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+      <svg id="g-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+    </button>
+  </div>
   <!-- =============================================
        SPLASH SCREEN
   ============================================= -->
@@ -1126,13 +1149,6 @@
         <div class="nav-item" id="logoutBtn">
           <i class="fas fa-sign-out-alt"></i>
           <span>Logout</span>
-        </div>
-        <div class="nav-item" id="globalNotificationBtn">
-          <i class="fas fa-bell"></i>
-          <span>Notifications</span>
-          <div class="notification-indicator" id="globalNotificationIndicator" style="display: none;">
-            <span class="notification-badge">0</span>
-          </div>
         </div>
       </div>
     </aside>

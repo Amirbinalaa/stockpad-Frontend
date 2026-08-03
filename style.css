@@ -541,38 +541,46 @@
     justify-content: center;
     text-align: center;
     animation: pulse 2s infinite;
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 @keyframes pulse {
     0%, 100% { transform: scale3d(1, 1, 1); }
-    50% { transform: scale3d(1.06, 1.06, 1); }
+    50% { transform: scale3d(1.08, 1.08, 1); }
 }
 
 /* Notification Center Dropdown */
 .notification-center {
     position: fixed;
-    top: 80px;
-    right: 20px;
+    top: 68px;
+    right: 16px;
     width: 380px;
     max-height: 500px;
     background: var(--card-bg);
     border: 2px solid var(--beige-border);
     border-radius: 20px;
     box-shadow: var(--shadow-xl);
-    z-index: 1000;
+    z-index: 10001;
     overflow: hidden;
-    animation: slideDown 0.3s ease;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate3d(0, -12px, 0) scale(0.96);
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0.25s step-end;
+    will-change: opacity, transform;
 }
 
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translate3d(0, -10px, 0);
-    }
-    to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-    }
+.notification-center.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0s step-start;
 }
 
 .notification-header {

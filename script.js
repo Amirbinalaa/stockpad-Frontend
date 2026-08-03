@@ -776,6 +776,7 @@ class NotificationSystem {
         this.notifications = []; // Client-side cache of all notifications
         this.currentTab    = 'all';
         this._loading      = false;
+        this._docClickListener = null;
         this.init();
     }
 
@@ -787,24 +788,31 @@ class NotificationSystem {
         this.empty       = document.getElementById('notificationEmpty');
         this.markAllBtn  = document.getElementById('markAllNotificationsRead');
         this.tabBtns     = document.querySelectorAll('.tab-btn');
+        this.indicator   = document.getElementById('globalNotificationIndicator');
+        this.badge       = this.indicator?.querySelector('.notification-badge');
 
         this.bellBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggle();
         });
 
-        // Prevent any click inside the notification center from auto-closing it
+        // Prevent click inside notification center from auto-closing dropdown
         this.center?.addEventListener('click', (e) => {
             e.stopPropagation();
         });
 
-        document.addEventListener('click', (e) => {
+        // Clean document click listener stored on instance
+        this._docClickListener = (e) => {
             if (
                 this.center &&
+                this.isOpen() &&
                 !this.center.contains(e.target) &&
                 !this.bellBtn?.contains(e.target)
-            ) this.hide();
-        });
+            ) {
+                this.hide();
+            }
+        };
+        document.addEventListener('click', this._docClickListener);
 
         this.tabBtns.forEach(btn =>
             btn.addEventListener('click', (e) => {
@@ -818,8 +826,43 @@ class NotificationSystem {
             this.markAllAsRead();
         });
 
+        // Delegated listener on the list container for performance
+        if (this.list) {
+            this.list.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // Delete button handler
+                const deleteBtn = e.target.closest('.notif-delete-btn');
+                if (deleteBtn) {
+                    const id = deleteBtn.dataset.id;
+                    if (id) this.deleteOne(id);
+                    return;
+                }
+
+                // Item click handler
+                const item = e.target.closest('.notification-item');
+                if (item) {
+                    const id = item.dataset.id;
+                    if (id) {
+                        this.markOneRead(id);
+                        const notif = this.notifications.find(n => n.id === id);
+                        if (notif) {
+                            this.openDetailModal(notif);
+                        }
+                    }
+                }
+            });
+        }
+
         // Initial fetch on sign-in / app load (non-blocking)
         this.refresh();
+    }
+
+    destroy() {
+        if (this._docClickListener) {
+            document.removeEventListener('click', this._docClickListener);
+            this._docClickListener = null;
+        }
     }
 
     // ── API helpers ─────────────────────────────────────────────────────────
@@ -838,7 +881,7 @@ class NotificationSystem {
         };
     }
 
-    /** Pull the latest list from the server and update the local cache */
+    /** Pull latest list from server and update local cache */
     async refresh() {
         if (this._loading) return;
         this._loading = true;
@@ -847,7 +890,7 @@ class NotificationSystem {
             const items = Array.isArray(data) ? data : (data.results || []);
             this.notifications = items.map(n => this._mapFromApi(n));
             await this.updateBadge();
-            if (this.center?.style.display === 'block') this.render();
+            if (this.isOpen()) this.render();
         } catch (e) {
             if (!ApiService.isSessionExpiredError(e)) {
                 console.error('Failed to load notifications:', e);
@@ -858,16 +901,30 @@ class NotificationSystem {
     }
 
     // ── Panel open / close ──────────────────────────────────────────────────
-    toggle() { this.center?.style.display === 'block' ? this.hide() : this.show(); }
-
-    async show() {
-        if (!this.center) return;
-        this.center.style.display = 'block';
-        await this.refresh();
-        this.render();
+    isOpen() {
+        return this.center?.classList.contains('active') || false;
     }
 
-    hide() { if (this.center) this.center.style.display = 'none'; }
+    toggle() {
+        this.isOpen() ? this.hide() : this.show();
+    }
+
+    show() {
+        if (!this.center) return;
+        // Zero-delay instant show using cached notifications
+        this.center.style.display = ''; // Clear inline display:none override if present
+        this.center.classList.add('active');
+        if (this.bellBtn) this.bellBtn.setAttribute('aria-expanded', 'true');
+        this.render();
+        // Background refresh without delaying UI opening
+        this.refresh();
+    }
+
+    hide() {
+        if (!this.center) return;
+        this.center.classList.remove('active');
+        if (this.bellBtn) this.bellBtn.setAttribute('aria-expanded', 'false');
+    }
 
     // ── Tab switching ───────────────────────────────────────────────────────
     switchTab(tab) {
@@ -878,9 +935,9 @@ class NotificationSystem {
 
     // ── Badge (bell icon counter) ───────────────────────────────────────────
     async updateBadge() {
-        const indicator = document.getElementById('globalNotificationIndicator');
-        const badge     = indicator?.querySelector('.notification-badge');
-        if (!indicator || !badge) return;
+        if (!this.indicator) this.indicator = document.getElementById('globalNotificationIndicator');
+        if (!this.badge) this.badge = this.indicator?.querySelector('.notification-badge');
+        if (!this.indicator || !this.badge) return;
 
         let count = 0;
         try {
@@ -891,8 +948,8 @@ class NotificationSystem {
             count = this.notifications.filter(n => !n.read).length;
         }
 
-        indicator.style.display = count > 0 ? 'block' : 'none';
-        badge.textContent       = count > 99 ? '99+' : String(count);
+        this.indicator.style.display = count > 0 ? 'block' : 'none';
+        this.badge.textContent       = count > 99 ? '99+' : String(count);
     }
 
     // ── Mark all as read (single bulk request) ──────────────────────────────
@@ -900,11 +957,11 @@ class NotificationSystem {
         const hasUnread = this.notifications.some(n => !n.read);
         if (!hasUnread) return;
 
-        // Optimistic save & update
+        // Immediate optimistic UI update
         const backup = this.notifications.map(n => ({ ...n }));
         this.notifications.forEach(n => { n.read = true; });
         this.render();
-        await this.updateBadge();
+        this.updateBadge();
 
         try {
             await ApiService.markAllNotificationsRead();
@@ -913,7 +970,7 @@ class NotificationSystem {
             showNotification('Error', 'Failed to mark all as read. Syncing...', 'error');
             this.notifications = backup;
             this.render();
-            await this.updateBadge();
+            this.updateBadge();
         }
     }
 
@@ -922,11 +979,11 @@ class NotificationSystem {
         const target = this.notifications.find(n => n.id === id);
         if (!target || target.read) return;
 
-        // Optimistic save & update
+        // Immediate optimistic UI update
         const oldReadState = target.read;
         target.read = true;
         this.render();
-        await this.updateBadge();
+        this.updateBadge();
 
         try {
             await ApiService.markNotificationRead(id);
@@ -937,7 +994,7 @@ class NotificationSystem {
             }
             target.read = oldReadState;
             this.render();
-            await this.updateBadge();
+            this.updateBadge();
         }
     }
 
@@ -946,11 +1003,11 @@ class NotificationSystem {
         const targetIndex = this.notifications.findIndex(n => n.id === id);
         if (targetIndex === -1) return;
 
-        // Optimistic save & update
+        // Immediate optimistic UI update
         const backup = [...this.notifications];
         this.notifications.splice(targetIndex, 1);
         this.render();
-        await this.updateBadge();
+        this.updateBadge();
 
         try {
             await ApiService.deleteNotification(id);
@@ -959,7 +1016,7 @@ class NotificationSystem {
             showNotification('Sync Error', 'Failed to delete notification.', 'error');
             this.notifications = backup;
             this.render();
-            await this.updateBadge();
+            this.updateBadge();
         }
     }
 
@@ -981,7 +1038,7 @@ class NotificationSystem {
 
         if (badgeEl) {
             badgeEl.textContent = notification.category;
-            badgeEl.className = 'badge'; // Reset classes
+            badgeEl.className = 'badge';
             if (notification.category === 'alert') {
                 badgeEl.style.background = 'var(--error-red-light)';
                 badgeEl.style.color      = 'var(--error-red)';
@@ -1014,7 +1071,6 @@ class NotificationSystem {
                 actionBtn.style.display = 'none';
             }
 
-            // Bind click redirection
             actionBtn.onclick = (e) => {
                 e.stopPropagation();
                 modal.classList.remove('active');
@@ -1025,7 +1081,6 @@ class NotificationSystem {
             };
         }
 
-        // Bind close buttons
         const closeBtn = document.getElementById('closeNotifDetailModalBtn');
         const footerCloseBtn = document.getElementById('closeNotifDetailModalFooterBtn');
 
@@ -1043,28 +1098,19 @@ class NotificationSystem {
         modal.classList.add('active');
     }
 
-    // ── Legacy add() shim ───────────────────────────────────────────────────
-    /**
-     * Used by the pending-requests poller and other callsites that still call
-     * notificationSystem.add().  Fires a toast and persists to the backend.
-     */
     add(title, message, type = 'info') {
-        // Support historical inverted argument order
         if (['alert', 'reminder', 'request', 'info', 'success', 'error'].includes(title)) {
             [title, message, type] = [message, type, title];
         }
 
-        // Map internal type strings to a notification category
         const catMap = { alert: 'alert', reminder: 'reminder', request: 'request', requests: 'request' };
         const category = catMap[type] || null;
 
-        // Toast
         const toastType = (type === 'alert' || type === 'error') ? 'error'
             : (type === 'success' || type === 'request' || type === 'requests') ? 'success'
             : 'info';
         showNotification(title, message, toastType, 4000);
 
-        // Backend persistence (fire-and-forget)
         if (category) {
             const slug = title
                 .toLowerCase()
@@ -1077,7 +1123,6 @@ class NotificationSystem {
         }
     }
 
-    // ── Render ──────────────────────────────────────────────────────────────
     render() {
         if (!this.list || !this.empty) return;
 
@@ -1127,32 +1172,6 @@ class NotificationSystem {
                 </div>
             </div>`;
         }).join('');
-
-        // ── Event listeners ──────────────────────────────────────────────
-        this.list.querySelectorAll('.notification-item').forEach(el => {
-            el.addEventListener('click', async (e) => {
-                e.stopPropagation(); // prevent closing the parent dropdown center
-                // Don't trigger card-click when the trash btn is clicked
-                if (e.target.closest('.notif-delete-btn')) return;
-
-                const id = el.dataset.id;
-                if (id) {
-                    await this.markOneRead(id);
-                    const notif = this.notifications.find(n => n.id === id);
-                    if (notif) {
-                        this.openDetailModal(notif);
-                    }
-                }
-            });
-        });
-
-        this.list.querySelectorAll('.notif-delete-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                if (id) await this.deleteOne(id);
-            });
-        });
     }
 
     // ── Relative timestamp ──────────────────────────────────────────────────
