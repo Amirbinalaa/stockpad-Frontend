@@ -1577,25 +1577,75 @@ body {
     margin-top: auto;
 }
 
-/* Notification Button - Separate Styling */
-#globalNotificationBtn {
-    margin-top: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid var(--beige-border);
-    position: relative;
+/* Notification Top Header Controls */
+.top-header-controls {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-#globalNotificationBtn:hover {
-    background: var(--beige-lighter);
+#globalNotificationBtn,
+#global-theme-btn,
+.top-control-btn {
+    box-sizing: border-box;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 50% !important;
+    border: 1.5px solid var(--border) !important;
+    background: var(--surface) !important;
+    color: var(--text-secondary) !important;
+    cursor: pointer;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    transition: background var(--transition), border-color var(--transition),
+                color var(--transition), transform 0.15s, box-shadow var(--transition);
+    font-size: 1rem;
+    position: relative !important;
+    line-height: 1;
 }
 
-/* Dark mode for notification button */
-[data-theme="dark"] #globalNotificationBtn {
-    border-color: var(--beige-border);
+#globalNotificationBtn:hover,
+#global-theme-btn:hover,
+.top-control-btn:hover {
+    border-color: var(--orange) !important;
+    color: var(--orange) !important;
+    transform: scale(1.08);
+    box-shadow: 0 4px 18px rgba(249, 115, 22, 0.25);
+    background: var(--surface) !important;
 }
 
-[data-theme="dark"] #globalNotificationBtn:hover {
-    background: var(--beige-lighter);
+#globalNotificationBtn i,
+#globalNotificationBtn svg,
+#global-theme-btn svg,
+.top-control-btn svg,
+.top-control-btn i {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    margin: 0;
+    padding: 0;
+}
+
+.top-control-btn .notification-indicator {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    z-index: 10;
+    margin: 0;
 }
 
 .main-content {
@@ -3511,11 +3561,11 @@ html.splash-active body::-webkit-scrollbar {
     max-width: calc(100vw - 2rem) !important;
   }
 
-  /* ── DARK MODE TOGGLE ── */
-  #global-theme-btn {
+  /* ── HEADER CONTROLS ── */
+  .top-header-controls {
     top: 14px !important;
     right: 14px !important;
-    z-index: 1200 !important;
+    z-index: 10000 !important;
   }
 }
 
