@@ -1124,6 +1124,10 @@
             <i class="fas fa-exchange-alt"></i>
             <span>Activity / Add New</span>
           </div>
+          <div class="nav-item" data-page="products">
+            <i class="fas fa-boxes"></i>
+            <span>Products</span>
+          </div>
           <div class="nav-item" data-page="reports">
             <i class="fas fa-file-alt"></i>
             <span>Reports</span>
@@ -1331,6 +1335,118 @@
                 <button type="submit" class="btn-submit"><i class="fas fa-save"></i> Save New Material</button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+      <!-- PRODUCTS & BOM PAGE -->
+      <div id="productsPage" class="page">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2 style="margin: 0; color: var(--dark-wood);">Products & Bill of Materials (BOM)</h2>
+            <p style="color: var(--dark-wood-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Define manufactured products and their material recipes.</p>
+          </div>
+          <button type="button" id="toggleAddProductBtn" class="btn-primary">
+            <i class="fas fa-plus"></i> Add New Product
+          </button>
+        </div>
+
+        <!-- Add Product Section Form -->
+        <div id="addProductSection" class="card" style="margin-bottom: 2rem;">
+          <h3 style="margin-bottom: 1.25rem; color: var(--dark-wood);"><i class="fas fa-box-open" style="color: var(--burnt-orange);"></i> New Product Definition</h3>
+          <form id="addProductForm" class="add-product-form">
+            <div class="add-material-hero">
+              <div class="add-material-hero__name form-group">
+                <label for="productName">Product Name *</label>
+                <input type="text" id="productName" placeholder="e.g., Prefab Wooden Chair" required />
+              </div>
+              <label class="add-material-hero__dropzone" for="productPhotoInput" title="Optional product photo">
+                <span id="productPhotoPlaceholder" class="add-material-hero__placeholder"><i class="fas fa-camera"></i></span>
+                <img id="productPhotoPreview" class="add-material-hero__preview" alt="" hidden />
+                <input type="file" id="productPhotoInput" accept="image/*" hidden />
+              </label>
+            </div>
+
+            <div class="form-row-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+              <div class="form-group">
+                <label for="productSku">SKU *</label>
+                <input type="text" id="productSku" placeholder="e.g., PRD-CHAIR-001" required />
+              </div>
+              <div class="form-group">
+                <label for="productCategory">Category</label>
+                <input type="text" id="productCategory" placeholder="e.g., Furniture, Electronics" />
+              </div>
+              <div class="form-group">
+                <label for="productUom">Product UOM *</label>
+                <input type="text" id="productUom" placeholder="e.g., pcs, set, box" required />
+              </div>
+              <div class="form-group">
+                <label for="productStatus">Status</label>
+                <select id="productStatus">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="productDescription">Description</label>
+              <textarea id="productDescription" rows="2" placeholder="Optional description of the product..."></textarea>
+            </div>
+
+            <!-- Bill of Materials (BOM) Section -->
+            <div class="bom-section" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--beige-border);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                  <h4 style="margin: 0; color: var(--dark-wood); font-size: 1rem;"><i class="fas fa-layer-group" style="color: var(--burnt-orange);"></i> Bill of Materials (BOM / Recipe)</h4>
+                  <p style="font-size: 0.8rem; color: var(--dark-wood-secondary); margin-top: 0.2rem;">Select raw materials and quantities required to manufacture 1 unit of this product.</p>
+                </div>
+                <button type="button" id="addBomRowBtn" class="btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+                  <i class="fas fa-plus"></i> Add Material Line
+                </button>
+              </div>
+
+              <div id="bomRowsContainer" class="bom-rows-container" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Dynamic BOM lines injected via JS -->
+              </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+              <button type="button" id="cancelProductBtn" class="btn-outline">Clear Form</button>
+              <button type="submit" class="btn-submit" id="saveProductBtn">
+                <i class="fas fa-save"></i> Save Product
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Products List Card -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: var(--dark-wood);">Products Catalog</h3>
+            <span id="productCountBadge" class="status-badge approved">0 Products</span>
+          </div>
+          <div id="productsTableContainer" class="table-responsive">
+            <table class="requests-table" id="productsTable">
+              <thead>
+                <tr>
+                  <th>Photo</th>
+                  <th>SKU</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Product UOM</th>
+                  <th>BOM Lines</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsTableBody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+          <div id="productsEmptyState" style="display: none; padding: 3rem 1.5rem; text-align: center; color: var(--dark-wood-secondary);">
+            <i class="fas fa-boxes" style="font-size: 2.5rem; opacity: 0.3; margin-bottom: 0.75rem;"></i>
+            <p>No products created yet. Click "Add New Product" to define your first product recipe.</p>
           </div>
         </div>
       </div>
@@ -1728,6 +1844,52 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+        <!-- Implied Demand Ranked Bar Chart Section -->
+        <div class="card" style="margin-top: 1.5rem; padding: 1.5rem; display: flex; flex-direction: column; position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 style="margin: 0; color: var(--dark-wood); font-size: 1rem; font-weight: 700; text-transform: uppercase;">
+                  <i class="fas fa-chart-bar" style="color: var(--burnt-orange); margin-right: 6px;"></i> Top Products by Implied Demand
+                </h3>
+                <span class="status-badge pending" style="font-size: 0.7rem; font-weight: 600;">Implied Demand (estimate)</span>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--dark-wood-secondary); margin-top: 4px; margin-bottom: 0;">
+                Sum-ratio estimate derived from historical warehouse material consumption against Product BOM recipes.
+              </p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;" id="impliedDemandControls">
+              <!-- Limit Selector Button Group -->
+              <div class="implied-limit-group" style="display: flex; align-items: center; gap: 2px; background: var(--main-bg); padding: 3px; border-radius: 8px; border: 1px solid var(--beige-border);">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--dark-wood-secondary); padding: 0 6px;">Top N:</span>
+                <button type="button" class="btn-implied-limit active" data-limit="10">10</button>
+                <button type="button" class="btn-implied-limit" data-limit="25">25</button>
+                <button type="button" class="btn-implied-limit" data-limit="50">50</button>
+                <button type="button" class="btn-implied-limit" data-limit="100">100</button>
+              </div>
+
+              <!-- Period Selector Button Group -->
+              <div class="implied-period-group" style="display: flex; align-items: center; gap: 2px; background: var(--main-bg); padding: 3px; border-radius: 8px; border: 1px solid var(--beige-border);">
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--dark-wood-secondary); padding: 0 6px;">Period:</span>
+                <button type="button" class="btn-implied-period" data-period="7days">7D</button>
+                <button type="button" class="btn-implied-period active" data-period="30days">30D</button>
+                <button type="button" class="btn-implied-period" data-period="90days">90D</button>
+                <button type="button" class="btn-implied-period" data-period="all">All</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart container -->
+          <div id="impliedDemandChartContainer" class="ai-demand-chart-wrap" style="min-height: 380px; height: auto;">
+            <div id="implied-demand-chart" class="ai-demand-chart-canvas" style="min-height: 360px;"></div>
+            <div id="impliedDemandEmptyState" style="display: none; padding: 4rem 2rem; text-align: center; color: var(--dark-wood-secondary);">
+              <i class="fas fa-chart-bar" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+              <p style="font-weight: 700; font-size: 1rem; color: var(--dark-wood); margin-bottom: 4px;">No Implied Demand Data Available</p>
+              <p style="font-size: 0.85rem; max-width: 440px; margin: 0 auto;">Ensure active manufactured products have defined BOM recipes and material stock transactions exist within the selected timeframe.</p>
             </div>
           </div>
         </div>
@@ -2173,6 +2335,41 @@
       });
     };
   </script>
+  <!-- QUICK-CREATE MATERIAL MODAL -->
+  <div id="quickCreateMaterialModal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 440px; width: 90%;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--beige-border);">
+        <h3 style="margin: 0; font-size: 1.1rem; color: var(--dark-wood); display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-plus-circle" style="color: var(--burnt-orange);"></i> Quick-Create Material
+        </h3>
+        <button type="button" class="close-modal-btn" id="closeQuickMaterialModalBtn" style="background: none; border: none; font-size: 1.5rem; color: var(--dark-wood-secondary); cursor: pointer;">&times;</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--dark-wood-secondary); margin-bottom: 1.25rem;">
+        Add a new raw material to the catalog so it can be added to your product recipe.
+      </p>
+      <form id="quickCreateMaterialForm">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="quickMaterialName" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Material Name *</label>
+          <input type="text" id="quickMaterialName" placeholder="e.g., Raw Rubber" required style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="quickMaterialUnit" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Unit of Measure *</label>
+          <select id="quickMaterialUnit" required style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary);">
+            <option value="kg">Kilogram (kg)</option>
+            <option value="L">Liter (L)</option>
+            <option value="pcs">Pieces (pcs)</option>
+            <option value="m">Meter (m)</option>
+          </select>
+        </div>
+        <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn-outline" id="cancelQuickMaterialBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="saveQuickMaterialBtn">
+            <i class="fas fa-check"></i> Create Material
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </body>
 
 </html>

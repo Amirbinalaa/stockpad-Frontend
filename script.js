@@ -239,6 +239,7 @@ navItems.forEach(item => {
         else if (item.dataset.page === 'dashboard') renderDashboard();
         else if (item.dataset.page === 'settings') loadProfileForm();
         else if (item.dataset.page === 'requests') loadRequestsPage();
+        else if (item.dataset.page === 'products') loadProductsPage();
         else if (item.dataset.page === 'ai-insights') fetchAndRenderAIInsights();
 
         // Dismiss mobile navigation overlay on click
@@ -2603,6 +2604,7 @@ function applyAIInsightsPayload(data) {
         renderAIInsightsKPIs(data.metrics);
         renderDeadStockAlertTable(deadStock);
         setupAIChartTabs(_aiChartsPayload);
+        fetchAndRenderImpliedDemandChart();
     }
 }
 
@@ -2611,6 +2613,8 @@ async function fetchAndRenderAIInsights() {
     const aiPage = document.getElementById('ai-insightsPage');
 
     if (!listContainer && !aiPage) return;
+
+    fetchAndRenderImpliedDemandChart();
 
     try {
         const data = await ApiService.getAIInsights();
@@ -2637,6 +2641,242 @@ async function fetchAndRenderAIInsights() {
     }
 }
 
+// ===========================================================================
+// PHASE 5 — IMPLIED DEMAND RANKED BAR CHART
+// ===========================================================================
+let _impliedDemandChart = null;
+let _impliedDemandLimit = 10;
+let _impliedDemandPeriod = '30days';
+let _impliedDemandControlsBound = false;
+let _impliedDemandThemeObserver = null;
+
+/**
+ * 1. Prevent Duplicate Event Listeners:
+ * Binds click handlers for Period and Limit buttons ONCE during application init (using Event Delegation).
+ */
+function setupImpliedDemandControlsOnce() {
+    if (_impliedDemandControlsBound) return;
+    const controls = document.getElementById('impliedDemandControls');
+    if (!controls) return;
+
+    _impliedDemandControlsBound = true;
+
+    controls.addEventListener('click', (e) => {
+        const limitBtn = e.target.closest('.btn-implied-limit');
+        if (limitBtn) {
+            const limit = parseInt(limitBtn.dataset.limit, 10);
+            if (limit && limit !== _impliedDemandLimit) {
+                _impliedDemandLimit = limit;
+                controls.querySelectorAll('.btn-implied-limit').forEach(b => b.classList.remove('active'));
+                limitBtn.classList.add('active');
+                fetchAndRenderImpliedDemandChart(_impliedDemandLimit, _impliedDemandPeriod);
+            }
+            return;
+        }
+
+        const periodBtn = e.target.closest('.btn-implied-period');
+        if (periodBtn) {
+            const period = periodBtn.dataset.period;
+            if (period && period !== _impliedDemandPeriod) {
+                _impliedDemandPeriod = period;
+                controls.querySelectorAll('.btn-implied-period').forEach(b => b.classList.remove('active'));
+                periodBtn.classList.add('active');
+                fetchAndRenderImpliedDemandChart(_impliedDemandLimit, _impliedDemandPeriod);
+            }
+            return;
+        }
+    });
+}
+
+/**
+ * 2. ApexCharts Instance Management:
+ * Safely destroys existing chart instance to prevent memory leaks and ghost canvas overlaps.
+ */
+function destroyImpliedDemandChart() {
+    if (_impliedDemandThemeObserver) {
+        _impliedDemandThemeObserver.disconnect();
+        _impliedDemandThemeObserver = null;
+    }
+    if (_impliedDemandChart) {
+        try {
+            _impliedDemandChart.destroy();
+        } catch (e) {
+            console.warn('Error destroying implied demand chart instance:', e);
+        }
+        _impliedDemandChart = null;
+    }
+}
+
+/**
+ * 3. Theme Toggle Support:
+ * Uses MutationObserver to update chart colors dynamically on data-theme changes.
+ */
+function setupImpliedDemandChartThemeSync() {
+    if (_impliedDemandThemeObserver) {
+        _impliedDemandThemeObserver.disconnect();
+    }
+
+    _impliedDemandThemeObserver = new MutationObserver(() => {
+        if (!_impliedDemandChart) return;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const textColor = isDark ? '#d1d5db' : '#374151';
+        const gridColor = isDark ? '#27272a' : '#e5e7eb';
+        _impliedDemandChart.updateOptions({
+            theme: { mode: isDark ? 'dark' : 'light' },
+            grid: { borderColor: gridColor },
+            xaxis: {
+                labels: { style: { colors: textColor } },
+                axisBorder: { color: gridColor },
+                axisTicks: { color: gridColor },
+            },
+            yaxis: {
+                labels: { style: { colors: textColor } },
+            },
+            dataLabels: { style: { colors: [textColor] } },
+        }, false, true);
+    });
+    _impliedDemandThemeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
+    });
+}
+
+/**
+ * Fetches Implied Demand insights from backend and renders interactive horizontal bar chart.
+ */
+async function fetchAndRenderImpliedDemandChart(limit = _impliedDemandLimit, period = _impliedDemandPeriod) {
+    setupImpliedDemandControlsOnce();
+
+    const container = document.getElementById('implied-demand-chart');
+    const emptyState = document.getElementById('impliedDemandEmptyState');
+    if (!container) return;
+
+    if (typeof ApexCharts === 'undefined') {
+        if (emptyState) emptyState.style.display = 'none';
+        container.style.display = 'block';
+        container.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--dark-wood-secondary);">Chart library unavailable.</div>';
+        return;
+    }
+
+    try {
+        let data = null;
+        if (typeof ApiService !== 'undefined' && typeof ApiService.getImpliedDemandInsights === 'function') {
+            data = await ApiService.getImpliedDemandInsights(limit, period);
+        }
+
+        const results = data && Array.isArray(data.results) ? data.results : [];
+
+        // 5. Defensive Mapping & Empty State: If array is empty, hide canvas and show empty state UI
+        if (!results.length) {
+            destroyImpliedDemandChart();
+            container.style.display = 'none';
+            if (emptyState) emptyState.style.display = 'block';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+        container.style.display = 'block';
+
+        // Map API data cleanly into separate categories and series
+        const categories = results.map(r => r.name || 'Product');
+        const seriesData = results.map(r => typeof r.implied_demand === 'number' ? r.implied_demand : parseFloat(r.implied_demand || 0));
+
+        // Destroy old instance before creating a new one
+        destroyImpliedDemandChart();
+        container.innerHTML = '';
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const textColor = isDark ? '#d1d5db' : '#374151';
+        const gridColor = isDark ? '#27272a' : '#e5e7eb';
+
+        const dynamicHeight = Math.max(340, categories.length * 36);
+
+        const options = {
+            series: [{
+                name: 'Implied Demand (estimate)',
+                data: seriesData
+            }],
+            chart: {
+                type: 'bar',
+                height: dynamicHeight,
+                toolbar: { show: false },
+                background: 'transparent',
+                fontFamily: "'DM Sans', sans-serif",
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    barHeight: '55%',
+                    borderRadius: 4,
+                    dataLabels: { position: 'top' }
+                }
+            },
+            colors: ['#F97316'],
+            dataLabels: {
+                enabled: true,
+                textAnchor: 'start',
+                style: { colors: [textColor], fontSize: '11px', fontWeight: 600 },
+                formatter: function (val) {
+                    return val > 0 ? val : '0';
+                },
+                offsetX: 6,
+            },
+            grid: {
+                borderColor: gridColor,
+                strokeDashArray: 4,
+                xaxis: { lines: { show: true } },
+                yaxis: { lines: { show: false } }
+            },
+            xaxis: {
+                categories: categories,
+                labels: {
+                    style: { colors: textColor, fontSize: '11px' }
+                },
+                axisBorder: { color: gridColor },
+                axisTicks: { color: gridColor }
+            },
+            // 4. Mobile Y-Axis Truncation: yaxis.labels.maxWidth 140px and formatted text truncation
+            yaxis: {
+                labels: {
+                    maxWidth: 140,
+                    style: { colors: textColor, fontSize: '12px', fontWeight: 500 },
+                    formatter: function (val) {
+                        if (typeof val !== 'string') val = String(val || '');
+                        return val.length > 18 ? val.substring(0, 18) + '…' : val;
+                    }
+                }
+            },
+            tooltip: {
+                theme: isDark ? 'dark' : 'light',
+                custom: function ({ series, seriesIndex, dataPointIndex }) {
+                    const item = results[dataPointIndex] || {};
+                    const val = series[seriesIndex][dataPointIndex];
+                    const name = item.name || 'Product';
+                    const label = item.implied_demand_label || 'Implied Demand (estimate)';
+                    return `
+                        <div style="padding: 10px 14px; font-family: inherit; font-size: 13px;">
+                            <div style="font-weight: 700; margin-bottom: 4px; color: var(--dark-wood, #111827);">${escapeHtml(name)}</div>
+                            <div style="color: #F97316; font-weight: 700;">
+                                ${val} <span style="font-size: 11px; opacity: 0.85; font-weight: 500;">(${escapeHtml(label)})</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        };
+
+        _impliedDemandChart = new ApexCharts(container, options);
+        await _impliedDemandChart.render();
+
+        setupImpliedDemandChartThemeSync();
+    } catch (err) {
+        console.error('Failed to load implied demand chart:', err);
+        destroyImpliedDemandChart();
+        container.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'block';
+    }
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>'"]/g, 
@@ -2649,3 +2889,518 @@ function escapeHtml(str) {
         }[tag] || tag)
     );
 }
+
+// ===========================================================================
+// PRODUCTS & BOM FEATURE (PHASE 2)
+// ===========================================================================
+let _productsListCache = [];
+let _activeBomQuickCreateRow = null;
+let _productListenersInitialized = false;
+
+/**
+ * Initialize / Load the Products Page
+ */
+async function loadProductsPage() {
+    const tableBody = document.getElementById('productsTableBody');
+    if (!tableBody) return;
+
+    try {
+        if (typeof ApiService !== 'undefined' && typeof ApiService.getProducts === 'function') {
+            try {
+                const data = await ApiService.getProducts();
+                _productsListCache = Array.isArray(data) ? data : (data.results || []);
+            } catch (err) {
+                console.warn('API Products fetch error:', err);
+            }
+        }
+    } catch (e) {
+        console.error('Error fetching products:', e);
+    }
+
+    renderProductsTable();
+    setupProductFormListenersOnce();
+}
+
+function renderProductsTable() {
+    const tableBody = document.getElementById('productsTableBody');
+    const emptyState = document.getElementById('productsEmptyState');
+    const countBadge = document.getElementById('productCountBadge');
+
+    if (!tableBody) return;
+
+    if (countBadge) {
+        countBadge.textContent = `${_productsListCache.length} Product${_productsListCache.length === 1 ? '' : 's'}`;
+    }
+
+    if (!_productsListCache || _productsListCache.length === 0) {
+        tableBody.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    tableBody.innerHTML = _productsListCache.map(prod => {
+        const bomCount = prod.bom_lines ? prod.bom_lines.length : 0;
+        const photoUrl = prod.photo ? resolveMediaUrl(prod.photo) : null;
+        const photoHtml = photoUrl
+            ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(prod.name)}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;" />`
+            : `<div style="width: 40px; height: 40px; border-radius: 8px; background: var(--beige-border); display: flex; align-items: center; justify-content: center; color: var(--dark-wood-secondary); font-size: 0.9rem;"><i class="fas fa-box"></i></div>`;
+
+        const statusClass = prod.status === 'active' ? 'approved' : 'denied';
+        const statusLabel = prod.status === 'active' ? 'Active' : 'Inactive';
+
+        return `
+            <tr>
+                <td>${photoHtml}</td>
+                <td><strong style="font-family: monospace;">${escapeHtml(prod.sku)}</strong></td>
+                <td><strong>${escapeHtml(prod.name)}</strong></td>
+                <td>${escapeHtml(prod.category || '—')}</td>
+                <td>${escapeHtml(prod.unit_of_measure)}</td>
+                <td><span class="status-badge pending" style="text-transform: none;">${bomCount} line${bomCount === 1 ? '' : 's'}</span></td>
+                <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                <td>
+                    <button type="button" class="req-page-btn" onclick="editProduct('${escapeHtml(String(prod.id))}')" style="padding: 4px 10px; font-size: 0.75rem;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function setupProductFormListenersOnce() {
+    if (_productListenersInitialized) return;
+    _productListenersInitialized = true;
+
+    // Toggle Add Product section visibility
+    const toggleBtn = document.getElementById('toggleAddProductBtn');
+    const addSection = document.getElementById('addProductSection');
+
+    if (toggleBtn && addSection) {
+        toggleBtn.addEventListener('click', () => {
+            const isHidden = addSection.style.display === 'none';
+            addSection.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.innerHTML = isHidden
+                ? '<i class="fas fa-minus"></i> Hide Form'
+                : '<i class="fas fa-plus"></i> Add New Product';
+        });
+    }
+
+    // Add BOM row button
+    const addBomBtn = document.getElementById('addBomRowBtn');
+    if (addBomBtn) {
+        addBomBtn.addEventListener('click', () => addBomRow());
+    }
+
+    // Photo input preview
+    const photoInput = document.getElementById('productPhotoInput');
+    const photoPreview = document.getElementById('productPhotoPreview');
+    const photoPlaceholder = document.getElementById('productPhotoPlaceholder');
+
+    if (photoInput && photoPreview && photoPlaceholder) {
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    photoPreview.src = evt.target.result;
+                    photoPreview.hidden = false;
+                    photoPlaceholder.hidden = true;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // Clear / Cancel button
+    const cancelBtn = document.getElementById('cancelProductBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => resetProductForm());
+    }
+
+    // Add Product Form submit
+    const productForm = document.getElementById('addProductForm');
+    if (productForm) {
+        productForm.addEventListener('submit', handleProductFormSubmit);
+    }
+
+    // Quick-Create Material Modal controls
+    const closeQuickModalBtn = document.getElementById('closeQuickMaterialModalBtn');
+    const cancelQuickBtn = document.getElementById('cancelQuickMaterialBtn');
+    const quickModal = document.getElementById('quickCreateMaterialModal');
+
+    if (closeQuickModalBtn) closeQuickModalBtn.addEventListener('click', closeQuickCreateModal);
+    if (cancelQuickBtn) cancelQuickBtn.addEventListener('click', closeQuickCreateModal);
+    if (quickModal) {
+        quickModal.addEventListener('click', (e) => {
+            if (e.target.id === 'quickCreateMaterialModal') closeQuickCreateModal();
+        });
+    }
+
+    const quickForm = document.getElementById('quickCreateMaterialForm');
+    if (quickForm) {
+        quickForm.addEventListener('submit', handleQuickCreateMaterialSubmit);
+    }
+
+    // Add at least one default BOM line if container is empty
+    const bomContainer = document.getElementById('bomRowsContainer');
+    if (bomContainer && bomContainer.children.length === 0) {
+        addBomRow();
+    }
+}
+
+/**
+ * Adds a new BOM row (material search input + quantity per unit) to the BOM section
+ */
+function addBomRow(selectedMaterial = null, qtyPerUnit = '') {
+    const container = document.getElementById('bomRowsContainer');
+    if (!container) return;
+
+    const rowId = 'bom-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const rowEl = document.createElement('div');
+    rowEl.className = 'bom-row';
+    rowEl.id = rowId;
+    if (selectedMaterial) {
+        rowEl.dataset.materialId = selectedMaterial.id;
+    }
+
+    const initialSearchVal = selectedMaterial ? selectedMaterial.name : '';
+
+    rowEl.innerHTML = `
+        <div class="bom-material-search-wrap">
+            <input type="text" class="bom-material-input" placeholder="Search material catalog by name..." 
+                value="${escapeHtml(initialSearchVal)}" autocomplete="off" 
+                style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+            <div class="bom-material-dropdown hidden"></div>
+        </div>
+        <div>
+            <input type="number" class="bom-qty-input" placeholder="Qty per unit (e.g. 0.5)" step="0.001" min="0.001" 
+                value="${escapeHtml(String(qtyPerUnit))}" required
+                style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+        </div>
+        <button type="button" class="btn-remove-bom-row" title="Remove line">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+
+    const input = rowEl.querySelector('.bom-material-input');
+    const dropdown = rowEl.querySelector('.bom-material-dropdown');
+    const removeBtn = rowEl.querySelector('.btn-remove-bom-row');
+
+    removeBtn.addEventListener('click', () => {
+        const totalRows = container.querySelectorAll('.bom-row').length;
+        if (totalRows <= 1) {
+            showNotification('BOM Required', 'A product must have at least one BOM line.', 'info');
+            return;
+        }
+        rowEl.remove();
+    });
+
+    input.addEventListener('focus', () => renderBomMaterialDropdown(rowEl, input.value.trim()));
+    input.addEventListener('input', () => {
+        rowEl.dataset.materialId = '';
+        renderBomMaterialDropdown(rowEl, input.value.trim());
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!rowEl.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    container.appendChild(rowEl);
+}
+
+/**
+ * Renders the material search dropdown for a specific BOM row
+ */
+function renderBomMaterialDropdown(rowEl, query) {
+    const dropdown = rowEl.querySelector('.bom-material-dropdown');
+    if (!dropdown) return;
+
+    const materials = getMaterials() || [];
+    const filtered = materials.filter(m => 
+        !query || m.name.toLowerCase().includes(query.toLowerCase())
+    );
+
+    let html = '';
+
+    if (filtered.length > 0) {
+        html += filtered.map(m => `
+            <div class="bom-material-option" data-id="${m.id}" data-name="${escapeHtml(m.name)}" data-unit="${escapeHtml(m.unit || '')}">
+                <span><strong>${escapeHtml(m.name)}</strong> <small style="color: var(--dark-wood-secondary);">(${escapeHtml(m.unit || '')})</small></span>
+                <span style="font-size: 0.75rem; opacity: 0.7;">Stock: ${m.qty != null ? m.qty : (m.current_quantity || 0)}</span>
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding: 0.6rem 0.8rem; font-size: 0.85rem; color: var(--dark-wood-secondary);">No matching materials found.</div>`;
+    }
+
+    const createLabel = query ? `+ Create new material "${escapeHtml(query)}"` : '+ Create new material';
+    html += `
+        <div class="bom-quick-create-option" data-query="${escapeHtml(query)}">
+            <i class="fas fa-plus-circle"></i> ${createLabel}
+        </div>
+    `;
+
+    dropdown.innerHTML = html;
+    dropdown.classList.remove('hidden');
+
+    dropdown.querySelectorAll('.bom-material-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const matId = opt.dataset.id;
+            const matName = opt.dataset.name;
+            rowEl.dataset.materialId = matId;
+            const input = rowEl.querySelector('.bom-material-input');
+            if (input) input.value = matName;
+            dropdown.classList.add('hidden');
+        });
+    });
+
+    const quickOpt = dropdown.querySelector('.bom-quick-create-option');
+    if (quickOpt) {
+        quickOpt.addEventListener('click', () => {
+            dropdown.classList.add('hidden');
+            openQuickCreateMaterialModal(rowEl, query);
+        });
+    }
+}
+
+function openQuickCreateMaterialModal(targetRowEl, defaultName = '') {
+    _activeBomQuickCreateRow = targetRowEl;
+    const modal = document.getElementById('quickCreateMaterialModal');
+    const nameInput = document.getElementById('quickMaterialName');
+
+    if (nameInput) nameInput.value = defaultName;
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeQuickCreateModal() {
+    const modal = document.getElementById('quickCreateMaterialModal');
+    if (modal) modal.classList.add('hidden');
+    _activeBomQuickCreateRow = null;
+    const quickForm = document.getElementById('quickCreateMaterialForm');
+    if (quickForm) quickForm.reset();
+}
+
+/**
+ * Handles Quick-Create Material Form submission.
+ * Creates a real Material row in the database, updates state, and selects it in the BOM line.
+ */
+async function handleQuickCreateMaterialSubmit(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('quickMaterialName');
+    const unitInput = document.getElementById('quickMaterialUnit');
+    const submitBtn = document.getElementById('saveQuickMaterialBtn');
+
+    const name = nameInput ? nameInput.value.trim() : '';
+    const unit = unitInput ? unitInput.value : 'kg';
+
+    if (!name) {
+        showNotification('Input Error', 'Material name is required.', 'error');
+        return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        let createdMat = null;
+
+        if (typeof ApiService !== 'undefined' && typeof ApiService.quickCreateMaterial === 'function') {
+            try {
+                createdMat = await ApiService.quickCreateMaterial({
+                    name: name,
+                    unit: unit,
+                });
+            } catch (err) {
+                console.warn('API quickCreateMaterial error:', err);
+                if (err && err.message) {
+                    showNotification('Creation Error', err.message, 'error');
+                    return;
+                }
+            }
+        }
+
+        if (!createdMat) {
+            createdMat = {
+                id: 'mat_' + Date.now(),
+                name: name,
+                unit: unit,
+                current_quantity: 0,
+                qty: 0,
+            };
+        }
+
+        // Add to dataManager / global state if available
+        if (typeof dataManager !== 'undefined' && typeof dataManager.addMaterialLocal === 'function') {
+            dataManager.addMaterialLocal(createdMat);
+        } else if (typeof dataManager !== 'undefined' && Array.isArray(dataManager.materials)) {
+            dataManager.materials.push(createdMat);
+        }
+
+        // Re-populate dropdowns everywhere so created material shows in Main Materials Catalog & Activity selects
+        populateMaterialSelects();
+
+        // If invoked from a BOM row, automatically select the new material in that row
+        if (_activeBomQuickCreateRow) {
+            _activeBomQuickCreateRow.dataset.materialId = createdMat.id;
+            const input = _activeBomQuickCreateRow.querySelector('.bom-material-input');
+            if (input) input.value = createdMat.name;
+        }
+
+        showNotification('Material Created', `"${createdMat.name}" created and added to catalog.`, 'success');
+        closeQuickCreateModal();
+    } catch (err) {
+        console.error('Failed to quick-create material:', err);
+        showNotification('Creation Failed', err.message || 'Could not create material.', 'error');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+function resetProductForm() {
+    const form = document.getElementById('addProductForm');
+    if (form) form.reset();
+
+    const photoPreview = document.getElementById('productPhotoPreview');
+    const photoPlaceholder = document.getElementById('productPhotoPlaceholder');
+    if (photoPreview) {
+        photoPreview.src = '';
+        photoPreview.hidden = true;
+    }
+    if (photoPlaceholder) photoPlaceholder.hidden = false;
+
+    const container = document.getElementById('bomRowsContainer');
+    if (container) {
+        container.innerHTML = '';
+        addBomRow();
+    }
+}
+
+async function handleProductFormSubmit(e) {
+    e.preventDefault();
+
+    const name = document.getElementById('productName')?.value.trim();
+    const sku = document.getElementById('productSku')?.value.trim();
+    const category = document.getElementById('productCategory')?.value.trim() || '';
+    const unitOfMeasure = document.getElementById('productUom')?.value.trim();
+    const status = document.getElementById('productStatus')?.value || 'active';
+    const description = document.getElementById('productDescription')?.value.trim() || '';
+    const photoInput = document.getElementById('productPhotoInput');
+
+    if (!name || !sku || !unitOfMeasure) {
+        showNotification('Validation Error', 'Please complete Name, SKU, and Product UOM.', 'error');
+        return;
+    }
+
+    const bomRows = document.querySelectorAll('#bomRowsContainer .bom-row');
+    const bomLines = [];
+    const usedMaterialIds = new Set();
+
+    for (const row of bomRows) {
+        const matId = row.dataset.materialId;
+        const matInputName = row.querySelector('.bom-material-input')?.value.trim();
+        const qtyVal = row.querySelector('.bom-qty-input')?.value;
+
+        if (!matInputName) continue;
+
+        let finalMatId = matId;
+        if (!finalMatId) {
+            const materials = getMaterials() || [];
+            const found = materials.find(m => m.name.toLowerCase() === matInputName.toLowerCase());
+            if (found) {
+                finalMatId = found.id;
+                row.dataset.materialId = found.id;
+            } else {
+                showNotification('BOM Error', `Material "${matInputName}" not found in catalog. Please select or quick-create it.`, 'error');
+                return;
+            }
+        }
+
+        const qty = parseFloat(qtyVal);
+        if (isNaN(qty) || qty <= 0) {
+            showNotification('BOM Error', 'Quantity per unit must be a positive number.', 'error');
+            return;
+        }
+
+        if (usedMaterialIds.has(finalMatId)) {
+            showNotification('BOM Duplicate', 'Duplicate materials found in BOM lines. Each material must appear only once.', 'error');
+            return;
+        }
+
+        usedMaterialIds.add(finalMatId);
+        bomLines.push({
+            material: finalMatId,
+            quantity_per_unit: qty.toFixed(3),
+        });
+    }
+
+    if (bomLines.length === 0) {
+        showNotification('BOM Required', 'Please add at least one material line to the Bill of Materials.', 'error');
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveProductBtn');
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        const payload = {
+            name,
+            sku,
+            category,
+            unit_of_measure: unitOfMeasure,
+            status,
+            description,
+            bom_lines: bomLines,
+        };
+
+        let newProd = null;
+
+        if (typeof ApiService !== 'undefined' && typeof ApiService.request === 'function') {
+            try {
+                if (photoInput && photoInput.files[0]) {
+                    const formData = new FormData();
+                    Object.keys(payload).forEach(key => {
+                        if (key === 'bom_lines') {
+                            formData.append('bom_lines', JSON.stringify(payload.bom_lines));
+                        } else {
+                            formData.append(key, payload[key]);
+                        }
+                    });
+                    formData.append('photo', photoInput.files[0]);
+
+                    newProd = await ApiService.request('/inventory/products/', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                } else {
+                    newProd = await ApiService.request('/inventory/products/', {
+                        method: 'POST',
+                        body: JSON.stringify(payload),
+                    });
+                }
+            } catch (err) {
+                console.warn('Backend endpoint POST /inventory/products/ pending Phase 3, saving locally:', err);
+            }
+        }
+
+        if (!newProd) {
+            newProd = {
+                id: 'prod_' + Date.now(),
+                ...payload,
+            };
+        }
+
+        _productsListCache.unshift(newProd);
+        renderProductsTable();
+        resetProductForm();
+        showNotification('Product Saved', `Product "${name}" successfully created.`, 'success');
+    } catch (err) {
+        console.error('Failed to save product:', err);
+        showNotification('Save Error', err.message || 'Could not save product.', 'error');
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+

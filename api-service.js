@@ -515,6 +515,44 @@ class ApiService {
         });
     }
 
+    static quickCreateMaterial(materialData) {
+        return this.request('/inventory/materials/quick-create/', {
+            method: 'POST',
+            body: JSON.stringify(materialData),
+        });
+    }
+
+    static getProducts() {
+        return this.request('/inventory/products/');
+    }
+
+    static getProduct(id) {
+        return this.request(`/inventory/products/${id}/`);
+    }
+
+    static createProduct(productData) {
+        const isFormData = productData instanceof FormData;
+        return this.request('/inventory/products/', {
+            method: 'POST',
+            body: isFormData ? productData : JSON.stringify(productData),
+        });
+    }
+
+    static updateProduct(id, productData) {
+        const isFormData = productData instanceof FormData;
+        return this.request(`/inventory/products/${id}/`, {
+            method: 'PUT',
+            body: isFormData ? productData : JSON.stringify(productData),
+        });
+    }
+
+    static updateProductBom(id, bomLinesData) {
+        return this.request(`/inventory/products/${id}/bom/`, {
+            method: 'PUT',
+            body: JSON.stringify(bomLinesData),
+        });
+    }
+
     static getTransactions() {
         return this.request('/inventory/transactions/');
     }
@@ -550,6 +588,13 @@ class ApiService {
 
     static getAIInsights() {
         return this.request('/inventory/insights/');
+    }
+
+    static getImpliedDemandInsights(limit = 10, period = '30days') {
+        const params = new URLSearchParams();
+        if (limit) params.set('limit', String(limit));
+        if (period) params.set('period', String(period));
+        return this.request(`/inventory/products/insights/implied-demand/?${params.toString()}`);
     }
 
     static getPreferences() {

@@ -5115,3 +5115,169 @@ overflow-y: auto !important;
         flex-direction: column;
     }
 }
+
+/* =============================================
+   PRODUCTS & BOM FEATURE STYLES (PHASE 2)
+============================================= */
+
+/* Modal Overlay & Dialog */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9990;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    opacity: 1;
+    transition: var(--transition-smooth);
+}
+
+.modal-overlay.hidden {
+    display: none !important;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-card {
+    background: var(--surface, #ffffff);
+    border-radius: var(--radius, 14px);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--border, #e5e5e5);
+    animation: modalSlideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* BOM Row Repeater */
+.bom-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 40px;
+    gap: 0.75rem;
+    align-items: center;
+    background: var(--beige-lighter, #fcf9f5);
+    border: 1px solid var(--beige-border, #e8dfd5);
+    border-radius: 10px;
+    padding: 0.75rem;
+    position: relative;
+    transition: var(--transition-smooth);
+}
+
+.bom-row:hover {
+    border-color: var(--burnt-orange-light, #e89563);
+}
+
+.bom-material-search-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.bom-material-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--beige-border, #e8dfd5);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md);
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.bom-material-option {
+    padding: 0.6rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--dark-wood, #3d2f26);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s ease;
+}
+
+.bom-material-option:hover,
+.bom-material-option.selected {
+    background: var(--burnt-orange-light, #FFF0E6);
+    color: var(--burnt-orange-dark, #c55d2a);
+}
+
+.bom-quick-create-option {
+    padding: 0.65rem 0.8rem;
+    background: rgba(249, 115, 22, 0.08);
+    color: var(--burnt-orange, #F97316);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-top: 1px dashed var(--beige-border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bom-quick-create-option:hover {
+    background: var(--burnt-orange);
+    color: #ffffff;
+}
+
+.btn-remove-bom-row {
+    height: 38px;
+    width: 38px;
+    border-radius: 8px;
+    border: 1px solid var(--error-red-light, #fef0ec);
+    background: var(--error-red-light, #fef0ec);
+    color: var(--error-red, #c94a28);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.btn-remove-bom-row:hover {
+    background: var(--error-red);
+    color: #ffffff;
+    border-color: var(--error-red);
+}
+
+/* Phase 5 — Implied Demand Ranked Bar Chart Controls & Styling */
+.btn-implied-limit,
+.btn-implied-period {
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--dark-wood-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: var(--transition, all 0.2s ease);
+}
+
+.btn-implied-limit:hover,
+.btn-implied-period:hover {
+    color: var(--dark-wood);
+    background: var(--surface-2, rgba(0, 0, 0, 0.05));
+}
+
+.btn-implied-limit.active,
+.btn-implied-period.active {
+    background: var(--burnt-orange, #F97316);
+    color: #ffffff;
+}
+
