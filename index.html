@@ -851,20 +851,21 @@
       color: white;
     }
 
-    /* Modal System — controlled via .hidden class (display:none !important) */
+    /* Modal System */
     .modal-overlay {
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px);
       z-index: 6000;
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
     }
 
-    /* Keep .active for review modal (legacy) */
-    .modal-overlay.active {
+    .modal-overlay.active,
+    #quickCreateMaterialModal:not(.hidden),
+    #editMaterialModal:not(.hidden) {
       display: flex;
     }
 
