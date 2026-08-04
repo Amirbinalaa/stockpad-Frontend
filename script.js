@@ -50,6 +50,7 @@ async function loadApp() {
     showAppScreen();
     renderDashboard();
     populateMaterialSelects();
+    setupProductFormListenersOnce(); // Bind quickCreateMaterialForm submit + BOM row controls
     checkNotifications(); // async — fires backend calls, does not block app render
     loadProfileForm();
 
@@ -390,19 +391,19 @@ function renderDashboard() {
         bar.className = hasImage ? 'material-bar-item material-bar-item--has-image' : 'material-bar-item';
         bar.innerHTML = `
             <div class="material-bar-header">
-                <span class="material-name">${escapeHtml(material.name)}</span>
+                <div class="material-info-left">
+                    <span class="material-name">${escapeHtml(material.name)}</span>
+                    <button type="button" class="btn-material-action-edit" data-material-id="${material.id}" data-tooltip="Edit Material">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                </div>
                 <div class="material-progress-hud">
                     <div class="material-progress-hud__track">
                         <div class="progress-bar-bg"><div class="progress-fill ${healthState}" style="transform:scaleX(${(percent / 100).toFixed(4)});"></div></div>
                         <span class="percentage-value">${percent.toFixed(1)}%</span>
                     </div>
                 </div>
-                <div class="material-bar-actions">
-                    <button type="button" class="btn-material-action-edit" data-material-id="${material.id}" data-tooltip="Edit Material">
-                        <i class="fas fa-pen"></i>
-                    </button>
-                    ${thumbBlock}
-                </div>
+                ${thumbBlock}
             </div>
             <div class="material-details">
                 <div class="detail-item"><span class="detail-label">Name</span><span class="detail-value">${escapeHtml(material.name)}</span></div>
@@ -3058,6 +3059,20 @@ function setupProductFormListenersOnce() {
         quickForm.addEventListener('submit', handleQuickCreateMaterialSubmit);
     }
 
+    // Tab switching inside Quick-Create Material Modal
+    document.querySelectorAll('#quickCreateMaterialModal .qc-tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetTab = btn.dataset.tab;
+            document.querySelectorAll('#quickCreateMaterialModal .qc-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#quickCreateMaterialModal .qc-tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            const panel = document.getElementById(targetTab);
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+
     // Add at least one default BOM line if container is empty
     const bomContainer = document.getElementById('bomRowsContainer');
     if (bomContainer && bomContainer.children.length === 0) {
@@ -3699,9 +3714,9 @@ function renderBomMaterialDropdown(rowEl, query) {
     dropdown.classList.remove('hidden');
 
     dropdown.querySelectorAll('.bom-material-option').forEach(opt => {
-        // mousedown fires before blur so dropdown stays visible when user clicks an option
-        opt.addEventListener('mousedown', (e) => {
-            e.preventDefault();
+        // Prevent blur from closing dropdown before we handle the selection
+        opt.addEventListener('mousedown', (e) => e.preventDefault());
+        opt.addEventListener('click', (e) => {
             e.stopPropagation();
             const matId = opt.dataset.id;
             const matName = opt.dataset.name;
@@ -3719,12 +3734,14 @@ function renderBomMaterialDropdown(rowEl, query) {
 
     const quickOpt = dropdown.querySelector('.bom-quick-create-option');
     if (quickOpt) {
-        // mousedown fires before blur — prevents input blur from closing dropdown before modal can open
-        quickOpt.addEventListener('mousedown', (e) => {
-            e.preventDefault();
+        // mousedown only prevents input blur. The actual action fires on click
+        // after a short defer so mouseup doesn't land on the freshly-opened modal.
+        quickOpt.addEventListener('mousedown', (e) => e.preventDefault());
+        quickOpt.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdown.classList.add('hidden');
-            openQuickCreateMaterialModal(rowEl, query);
+            // 50ms lets the mouseup cycle complete before modal steals focus
+            setTimeout(() => openQuickCreateMaterialModal(rowEl, query), 50);
         });
     }
 }
@@ -3758,6 +3775,14 @@ function openQuickCreateMaterialModal(targetRowEl, defaultName = '') {
     const modal = document.getElementById('quickCreateMaterialModal');
     const nameInput = document.getElementById('quickMaterialName');
 
+    // Always default to Tab 1 (Inventory) on open
+    document.querySelectorAll('#quickCreateMaterialModal .qc-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#quickCreateMaterialModal .qc-tab-panel').forEach(p => p.classList.remove('active'));
+    const invBtn = document.querySelector('#quickCreateMaterialModal .qc-tab-btn[data-tab="qc-inventory"]');
+    const invPanel = document.getElementById('qc-inventory');
+    if (invBtn) invBtn.classList.add('active');
+    if (invPanel) invPanel.classList.add('active');
+
     if (nameInput) nameInput.value = (defaultName || '').trim();
     if (modal) modal.classList.remove('hidden');
     // Focus the name field for instant typing (accessibility)
@@ -3781,12 +3806,19 @@ function closeQuickCreateModal() {
  */
 async function handleQuickCreateMaterialSubmit(e) {
     e.preventDefault();
-    const nameInput = document.getElementById('quickMaterialName');
-    const unitInput = document.getElementById('quickMaterialUnit');
-    const submitBtn = document.getElementById('saveQuickMaterialBtn');
+    const nameInput    = document.getElementById('quickMaterialName');
+    const unitInput    = document.getElementById('quickMaterialUnit');
+    const threshInput  = document.getElementById('quickMaterialThreshold');
+    const initQtyInput = document.getElementById('quickMaterialInitQty');
+    const maxQtyInput  = document.getElementById('quickMaterialMaxQty');
+    const photoInput   = document.getElementById('quickMaterialPhoto');
+    const costInput    = document.getElementById('quickMaterialCostPrice');
+    const currInput    = document.getElementById('quickMaterialCurrency');
+    const methodInput  = document.getElementById('quickMaterialCostingMethod');
+    const submitBtn    = document.getElementById('saveQuickMaterialBtn');
 
-    const name = nameInput ? nameInput.value.trim() : '';
-    const unit = unitInput ? unitInput.value : 'kg';
+    const name    = nameInput ? nameInput.value.trim() : '';
+    const unit    = unitInput ? unitInput.value : 'kg';
 
     if (!name) {
         showNotification('Input Error', 'Material name is required.', 'error');
@@ -3804,11 +3836,28 @@ async function handleQuickCreateMaterialSubmit(e) {
 
         if (typeof ApiService !== 'undefined' && typeof ApiService.quickCreateMaterial === 'function') {
             try {
-                createdMat = await ApiService.quickCreateMaterial({
-                    name: name,
-                    unit: unit,
+                const payload = {
+                    name,
+                    unit,
                     unit_of_measure: unit,
-                });
+                    initial_quantity:              parseFloat(initQtyInput?.value) || 0,
+                    max_quantity:                  parseFloat(maxQtyInput?.value)  || 100,
+                    low_stock_threshold_percent:   parseInt(threshInput?.value)    || 30,
+                    cost_price:                    parseFloat(costInput?.value)    || 0,
+                    currency:                      currInput?.value               || 'EGP',
+                    costing_method:                methodInput?.value             || 'MOVING_AVG',
+                };
+                // If photo provided, send as multipart
+                if (photoInput && photoInput.files && photoInput.files[0]) {
+                    const fd = new FormData();
+                    Object.keys(payload).forEach(k => {
+                        if (payload[k] !== null && payload[k] !== undefined) fd.append(k, payload[k]);
+                    });
+                    fd.append('image', photoInput.files[0]);
+                    createdMat = await ApiService.quickCreateMaterial(fd);
+                } else {
+                    createdMat = await ApiService.quickCreateMaterial(payload);
+                }
             } catch (err) {
                 console.warn('API quickCreateMaterial error:', err);
                 if (err && err.message) {
@@ -3821,10 +3870,10 @@ async function handleQuickCreateMaterialSubmit(e) {
         if (!createdMat || !createdMat.id) {
             createdMat = {
                 id: Date.now(),
-                name: name,
-                unit: unit,
-                current_quantity: 0,
-                qty: 0,
+                name,
+                unit,
+                current_quantity: parseFloat(initQtyInput?.value) || 0,
+                qty:              parseFloat(initQtyInput?.value) || 0,
             };
         }
 
@@ -3847,7 +3896,7 @@ async function handleQuickCreateMaterialSubmit(e) {
 
         // Automatically bind material.id, name, and UOM badge to active BOM row
         if (_activeBomQuickCreateRow) {
-            const finalId = normalized.id || createdMat.id;
+            const finalId   = normalized.id   || createdMat.id;
             const finalName = normalized.name || createdMat.name;
             const finalUnit = normalized.unit || createdMat.unit || unit;
 

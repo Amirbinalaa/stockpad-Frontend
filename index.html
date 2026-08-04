@@ -851,21 +851,59 @@
       color: white;
     }
 
-    /* Modal for Review */
+    /* Modal System — controlled via .hidden class (display:none !important) */
     .modal-overlay {
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px);
       z-index: 6000;
-      display: none;
+      display: flex;
       align-items: center;
       justify-content: center;
     }
 
+    /* Keep .active for review modal (legacy) */
     .modal-overlay.active {
       display: flex;
     }
+
+    .modal-card {
+      background: var(--card-bg, #fff);
+      border-radius: 16px;
+      padding: 1.5rem;
+      border: 1px solid var(--beige-border, #e8dfd5);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    /* Quick-create tab system */
+    .qc-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--beige-border, #e8dfd5);
+      margin-bottom: 1.25rem;
+    }
+    .qc-tab-btn {
+      flex: 1;
+      padding: 0.55rem 0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: none;
+      background: none;
+      color: var(--dark-wood-secondary, #5c4a3d);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .qc-tab-btn.active {
+      color: var(--burnt-orange, #d97742);
+      border-bottom-color: var(--burnt-orange, #d97742);
+    }
+    .qc-tab-panel { display: none; }
+    .qc-tab-panel.active { display: block; }
 
     .review-modal {
       background: var(--card-bg);
@@ -2335,34 +2373,96 @@
       });
     };
   </script>
-  <!-- QUICK-CREATE MATERIAL MODAL -->
+  <!-- QUICK-CREATE MATERIAL MODAL (tabbed: Inventory + Costing) -->
   <div id="quickCreateMaterialModal" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width: 440px; width: 90%;">
-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--beige-border);">
-        <h3 style="margin: 0; font-size: 1.1rem; color: var(--dark-wood); display: flex; align-items: center; gap: 8px;">
+    <div class="modal-card" style="max-width: 500px; width: 94%;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--beige-border);">
+        <h3 style="margin: 0; font-size: 1.05rem; color: var(--dark-wood); display: flex; align-items: center; gap: 8px;">
           <i class="fas fa-plus-circle" style="color: var(--burnt-orange);"></i> Quick-Create Material
         </h3>
-        <button type="button" class="close-modal-btn" id="closeQuickMaterialModalBtn" style="background: none; border: none; font-size: 1.5rem; color: var(--dark-wood-secondary); cursor: pointer;">&times;</button>
+        <button type="button" id="closeQuickMaterialModalBtn" style="background: none; border: none; font-size: 1.5rem; color: var(--dark-wood-secondary); cursor: pointer; line-height:1;">&times;</button>
       </div>
-      <p style="font-size: 0.85rem; color: var(--dark-wood-secondary); margin-bottom: 1.25rem;">
-        Add a new raw material to the catalog so it can be added to your product recipe.
-      </p>
+      <!-- Tab bar -->
+      <div class="qc-tabs">
+        <button type="button" class="qc-tab-btn active" data-tab="qc-inventory">📦 Inventory</button>
+        <button type="button" class="qc-tab-btn" data-tab="qc-costing">💰 Costing</button>
+      </div>
       <form id="quickCreateMaterialForm">
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label for="quickMaterialName" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Material Name *</label>
-          <input type="text" id="quickMaterialName" placeholder="e.g., Raw Rubber" required style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary);" />
+        <!-- TAB 1: Inventory -->
+        <div class="qc-tab-panel active" id="qc-inventory">
+          <div style="margin-bottom: 0.85rem;">
+            <label for="quickMaterialName" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Material Name *</label>
+            <input type="text" id="quickMaterialName" placeholder="e.g., Raw Rubber" required
+              style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;" />
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;">
+            <div>
+              <label for="quickMaterialUnit" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Unit of Measure *</label>
+              <select id="quickMaterialUnit" required style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;">
+                <option value="kg">Kilogram (kg)</option>
+                <option value="L">Liter (L)</option>
+                <option value="pcs">Pieces (pcs)</option>
+                <option value="m">Meter (m)</option>
+                <option value="m²">Square Meter (m²)</option>
+                <option value="g">Gram (g)</option>
+                <option value="mL">Milliliter (mL)</option>
+                <option value="box">Box</option>
+              </select>
+            </div>
+            <div>
+              <label for="quickMaterialThreshold" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Low Stock Threshold (%)</label>
+              <input type="number" id="quickMaterialThreshold" min="1" max="100" placeholder="30"
+                style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;" />
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;">
+            <div>
+              <label for="quickMaterialInitQty" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Initial Quantity</label>
+              <input type="number" id="quickMaterialInitQty" min="0" step="0.001" placeholder="0"
+                style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;" />
+            </div>
+            <div>
+              <label for="quickMaterialMaxQty" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Max Capacity</label>
+              <input type="number" id="quickMaterialMaxQty" min="1" placeholder="100"
+                style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;" />
+            </div>
+          </div>
+          <div style="margin-bottom:0.5rem;">
+            <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Photo (optional)</label>
+            <input type="file" id="quickMaterialPhoto" accept="image/*" style="font-size:0.82rem;" />
+          </div>
         </div>
-        <div class="form-group" style="margin-bottom: 1.5rem;">
-          <label for="quickMaterialUnit" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Unit of Measure *</label>
-          <select id="quickMaterialUnit" required style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary);">
-            <option value="kg">Kilogram (kg)</option>
-            <option value="L">Liter (L)</option>
-            <option value="pcs">Pieces (pcs)</option>
-            <option value="m">Meter (m)</option>
-            <option value="m²">Square Meter (m²)</option>
-          </select>
+        <!-- TAB 2: Costing -->
+        <div class="qc-tab-panel" id="qc-costing">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.85rem;">
+            <div>
+              <label for="quickMaterialCostPrice" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Cost Price</label>
+              <input type="number" id="quickMaterialCostPrice" step="0.01" min="0" placeholder="0.00"
+                style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;" />
+            </div>
+            <div>
+              <label for="quickMaterialCurrency" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Currency</label>
+              <select id="quickMaterialCurrency" style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;">
+                <option value="EGP">EGP (Egyptian Pound)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="SAR">SAR (﷼)</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:1rem;">
+            <label for="quickMaterialCostingMethod" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.3rem;color:var(--dark-wood);">Costing Method</label>
+            <select id="quickMaterialCostingMethod" style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid var(--beige-border);background:var(--input-bg);color:var(--text-primary);font-size:0.88rem;">
+              <option value="MOVING_AVG">Moving Average</option>
+              <option value="FIFO">FIFO (First In, First Out)</option>
+              <option value="STANDARD">Standard Cost</option>
+            </select>
+          </div>
         </div>
-        <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <!-- Footer actions -->
+        <div style="display:flex;justify-content:flex-end;gap:0.75rem;padding-top:0.85rem;border-top:1px solid var(--beige-border);margin-top:0.5rem;">
           <button type="button" class="btn-outline" id="cancelQuickMaterialBtn">Cancel</button>
           <button type="submit" class="btn-primary" id="saveQuickMaterialBtn">
             <i class="fas fa-check"></i> Create Material
