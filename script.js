@@ -397,9 +397,12 @@ function renderDashboard() {
                         <span class="percentage-value">${percent.toFixed(1)}%</span>
                     </div>
                 </div>
-                <button type="button" class="btn-edit-material" data-material-id="${material.id}" title="Edit Material" style="margin-left: 0.5rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--burnt-orange); background: transparent; color: var(--burnt-orange); font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: var(--transition-smooth);">
-                    <i class="fas fa-edit"></i> Edit
-                </button>
+                <div class="material-bar-actions">
+                    <button type="button" class="btn-material-action-edit" data-material-id="${material.id}" data-tooltip="Edit Material">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    ${thumbBlock}
+                </div>
             </div>
             <div class="material-details">
                 <div class="detail-item"><span class="detail-label">Name</span><span class="detail-value">${escapeHtml(material.name)}</span></div>
@@ -408,11 +411,10 @@ function renderDashboard() {
                 <div class="detail-item"><span class="detail-label">Cost</span><span class="detail-value">${formatMaterialCost(material)}</span></div>
                 <div class="detail-item"><span class="detail-label">Last Updated</span><span class="detail-value">${formatDate(material.lastUpdated)}</span></div>
             </div>
-            ${thumbBlock}
         `;
         bar.addEventListener('click', () => bar.classList.toggle('expanded'));
 
-        const editBtn = bar.querySelector('.btn-edit-material');
+        const editBtn = bar.querySelector('.btn-material-action-edit');
         if (editBtn) {
             editBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -3619,7 +3621,7 @@ function addBomRow(selectedMaterial = null, qtyPerUnit = '') {
                 style="width: 100%; padding: 0.55rem 3rem 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
             <span class="bom-uom-badge" style="position: absolute; right: 8px; padding: 2px 8px; border-radius: 6px; background: rgba(217, 119, 66, 0.15); color: var(--burnt-orange-dark); font-size: 0.75rem; font-weight: 700; text-transform: lowercase; pointer-events: none; display: ${initialUnit ? 'inline-flex' : 'none'}; align-items: center;">${escapeHtml(initialUnit)}</span>
         </div>
-        <button type="button" class="btn-remove-bom-row" title="Remove line">
+        <button type="button" class="btn-remove-bom-row" data-tooltip="Delete Line" title="Remove line">
             <i class="fas fa-trash"></i>
         </button>
     `;
@@ -3697,7 +3699,10 @@ function renderBomMaterialDropdown(rowEl, query) {
     dropdown.classList.remove('hidden');
 
     dropdown.querySelectorAll('.bom-material-option').forEach(opt => {
-        opt.addEventListener('click', () => {
+        // mousedown fires before blur so dropdown stays visible when user clicks an option
+        opt.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const matId = opt.dataset.id;
             const matName = opt.dataset.name;
             const matUnit = opt.dataset.unit;
@@ -3706,12 +3711,18 @@ function renderBomMaterialDropdown(rowEl, query) {
             if (input) input.value = matName;
             updateBomRowUomBadge(rowEl, matUnit);
             dropdown.classList.add('hidden');
+            // Move focus to quantity field for instant entry
+            const qtyInput = rowEl.querySelector('.bom-qty-input');
+            if (qtyInput) qtyInput.focus();
         });
     });
 
     const quickOpt = dropdown.querySelector('.bom-quick-create-option');
     if (quickOpt) {
-        quickOpt.addEventListener('click', () => {
+        // mousedown fires before blur — prevents input blur from closing dropdown before modal can open
+        quickOpt.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             dropdown.classList.add('hidden');
             openQuickCreateMaterialModal(rowEl, query);
         });
@@ -3844,6 +3855,9 @@ async function handleQuickCreateMaterialSubmit(e) {
             const input = _activeBomQuickCreateRow.querySelector('.bom-material-input');
             if (input) input.value = finalName;
             updateBomRowUomBadge(_activeBomQuickCreateRow, finalUnit);
+            // Auto-focus qty input so user can immediately type the quantity
+            const qtyInput = _activeBomQuickCreateRow.querySelector('.bom-qty-input');
+            if (qtyInput) requestAnimationFrame(() => qtyInput.focus());
         }
 
         showNotification('Material Created', `"${name}" created and bound to BOM line.`, 'success');

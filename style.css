@@ -5319,3 +5319,85 @@ overflow-y: auto !important;
     color: #ffffff;
 }
 
+/* =============================================
+   GLOBAL DARK-THEME TOOLTIP SYSTEM [data-tooltip]
+   ============================================= */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: var(--grey-900, #1a1a1a);
+    color: var(--text-primary, #f0f0f0);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border, #2c2c2c);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease-in-out, transform 0.15s ease-in-out;
+    z-index: 9999;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* =============================================
+   MATERIAL CARD — ACTION BAR (TOP-RIGHT CLUSTER)
+   ============================================= */
+.material-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Icon-only Edit button at top-right of Inventory Health Monitor cards */
+.btn-material-action-edit {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--beige-border, #e8dfd5);
+    background: transparent;
+    color: var(--dark-wood-secondary, #5c4a3d);
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    flex-shrink: 0;
+}
+
+.btn-material-action-edit:hover {
+    background: var(--burnt-orange, #d97742);
+    color: #ffffff;
+    border-color: var(--burnt-orange, #d97742);
+    transform: scale(1.08);
+}
+
+/* Thumbnail pulled into the action cluster (no longer floating alone) */
+.material-bar-actions .material-hud-thumb {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid var(--beige-border, #e8dfd5);
+    flex-shrink: 0;
+    display: block;
+}
+
