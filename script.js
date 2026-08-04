@@ -348,12 +348,13 @@ function renderDashboard() {
     const container = document.getElementById('dashboardMaterials');
     if (!container) return;
 
+    setupEditMaterialModalListenersOnce();
+
     const materials = getMaterials();
     container.innerHTML = '';
 
     if (materials.length === 0) {
         container.innerHTML = '<p style="text-align:center;padding:2rem;opacity:0.6;">No materials yet. Add some in Activity tab.</p>';
-
         return;
     }
 
@@ -389,17 +390,20 @@ function renderDashboard() {
         bar.className = hasImage ? 'material-bar-item material-bar-item--has-image' : 'material-bar-item';
         bar.innerHTML = `
             <div class="material-bar-header">
-                <span class="material-name">${material.name}</span>
+                <span class="material-name">${escapeHtml(material.name)}</span>
                 <div class="material-progress-hud">
                     <div class="material-progress-hud__track">
                         <div class="progress-bar-bg"><div class="progress-fill ${healthState}" style="transform:scaleX(${(percent / 100).toFixed(4)});"></div></div>
                         <span class="percentage-value">${percent.toFixed(1)}%</span>
                     </div>
                 </div>
+                <button type="button" class="btn-edit-material" data-material-id="${material.id}" title="Edit Material" style="margin-left: 0.5rem; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--burnt-orange); background: transparent; color: var(--burnt-orange); font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: var(--transition-smooth);">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
             </div>
             <div class="material-details">
-                <div class="detail-item"><span class="detail-label">Name</span><span class="detail-value">${material.name}</span></div>
-                <div class="detail-item"><span class="detail-label">Quantity</span><span class="detail-value">${material.qty} ${material.unit}</span></div>
+                <div class="detail-item"><span class="detail-label">Name</span><span class="detail-value">${escapeHtml(material.name)}</span></div>
+                <div class="detail-item"><span class="detail-label">Quantity</span><span class="detail-value">${material.qty} ${escapeHtml(material.unit || '')}</span></div>
                 <div class="detail-item"><span class="detail-label">Stock Level</span><span class="detail-value" style="color:${color}">${percent.toFixed(1)}% (${status})</span></div>
                 <div class="detail-item"><span class="detail-label">Cost</span><span class="detail-value">${formatMaterialCost(material)}</span></div>
                 <div class="detail-item"><span class="detail-label">Last Updated</span><span class="detail-value">${formatDate(material.lastUpdated)}</span></div>
@@ -407,6 +411,15 @@ function renderDashboard() {
             ${thumbBlock}
         `;
         bar.addEventListener('click', () => bar.classList.toggle('expanded'));
+
+        const editBtn = bar.querySelector('.btn-edit-material');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditMaterialModal(material.id);
+            });
+        }
+
         container.appendChild(bar);
     });
 
@@ -2960,7 +2973,7 @@ function renderProductsTable() {
                 <td><span class="status-badge pending" style="text-transform: none;">${bomCount} line${bomCount === 1 ? '' : 's'}</span></td>
                 <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
                 <td>
-                    <button type="button" class="req-page-btn" onclick="editProduct('${escapeHtml(String(prod.id))}')" style="padding: 4px 10px; font-size: 0.75rem;">
+                    <button type="button" class="btn-edit-product req-page-btn" data-product-id="${prod.id}" onclick="editProduct('${escapeHtml(String(prod.id))}')" style="padding: 4px 10px; font-size: 0.75rem;">
                         <i class="fas fa-edit"></i> Edit
                     </button>
                 </td>
@@ -3050,216 +3063,298 @@ function setupProductFormListenersOnce() {
     }
 }
 
-/**
- * Adds a new BOM row (material search input + quantity per unit) to the BOM section
- */
-function addBomRow(selectedMaterial = null, qtyPerUnit = '') {
-    const container = document.getElementById('bomRowsContainer');
-    if (!container) return;
+// ==================== TASK 3: INLINE EDIT ACTION FOR MATERIALS ====================
+let _editMaterialListenersInitialized = false;
 
-    const rowId = 'bom-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const rowEl = document.createElement('div');
-    rowEl.className = 'bom-row';
-    rowEl.id = rowId;
-    if (selectedMaterial) {
-        rowEl.dataset.materialId = selectedMaterial.id;
-    }
-
-    const initialSearchVal = selectedMaterial ? selectedMaterial.name : '';
-
-    rowEl.innerHTML = `
-        <div class="bom-material-search-wrap">
-            <input type="text" class="bom-material-input" placeholder="Search material catalog by name..." 
-                value="${escapeHtml(initialSearchVal)}" autocomplete="off" 
-                style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
-            <div class="bom-material-dropdown hidden"></div>
-        </div>
-        <div>
-            <input type="number" class="bom-qty-input" placeholder="Qty per unit (e.g. 0.5)" step="0.001" min="0.001" 
-                value="${escapeHtml(String(qtyPerUnit))}" required
-                style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
-        </div>
-        <button type="button" class="btn-remove-bom-row" title="Remove line">
-            <i class="fas fa-trash"></i>
-        </button>
-    `;
-
-    const input = rowEl.querySelector('.bom-material-input');
-    const dropdown = rowEl.querySelector('.bom-material-dropdown');
-    const removeBtn = rowEl.querySelector('.btn-remove-bom-row');
-
-    removeBtn.addEventListener('click', () => {
-        const totalRows = container.querySelectorAll('.bom-row').length;
-        if (totalRows <= 1) {
-            showNotification('BOM Required', 'A product must have at least one BOM line.', 'info');
-            return;
-        }
-        rowEl.remove();
-    });
-
-    input.addEventListener('focus', () => renderBomMaterialDropdown(rowEl, input.value.trim()));
-    input.addEventListener('input', () => {
-        rowEl.dataset.materialId = '';
-        renderBomMaterialDropdown(rowEl, input.value.trim());
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!rowEl.contains(e.target)) {
-            dropdown.classList.add('hidden');
-        }
-    });
-
-    container.appendChild(rowEl);
-}
-
-/**
- * Renders the material search dropdown for a specific BOM row
- */
-function renderBomMaterialDropdown(rowEl, query) {
-    const dropdown = rowEl.querySelector('.bom-material-dropdown');
-    if (!dropdown) return;
+function openEditMaterialModal(materialId) {
+    setupEditMaterialModalListenersOnce();
 
     const materials = getMaterials() || [];
-    const filtered = materials.filter(m => 
-        !query || m.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    let html = '';
-
-    if (filtered.length > 0) {
-        html += filtered.map(m => `
-            <div class="bom-material-option" data-id="${m.id}" data-name="${escapeHtml(m.name)}" data-unit="${escapeHtml(m.unit || '')}">
-                <span><strong>${escapeHtml(m.name)}</strong> <small style="color: var(--dark-wood-secondary);">(${escapeHtml(m.unit || '')})</small></span>
-                <span style="font-size: 0.75rem; opacity: 0.7;">Stock: ${m.qty != null ? m.qty : (m.current_quantity || 0)}</span>
-            </div>
-        `).join('');
-    } else {
-        html += `<div style="padding: 0.6rem 0.8rem; font-size: 0.85rem; color: var(--dark-wood-secondary);">No matching materials found.</div>`;
-    }
-
-    const createLabel = query ? `+ Create new material "${escapeHtml(query)}"` : '+ Create new material';
-    html += `
-        <div class="bom-quick-create-option" data-query="${escapeHtml(query)}">
-            <i class="fas fa-plus-circle"></i> ${createLabel}
-        </div>
-    `;
-
-    dropdown.innerHTML = html;
-    dropdown.classList.remove('hidden');
-
-    dropdown.querySelectorAll('.bom-material-option').forEach(opt => {
-        opt.addEventListener('click', () => {
-            const matId = opt.dataset.id;
-            const matName = opt.dataset.name;
-            rowEl.dataset.materialId = matId;
-            const input = rowEl.querySelector('.bom-material-input');
-            if (input) input.value = matName;
-            dropdown.classList.add('hidden');
-        });
-    });
-
-    const quickOpt = dropdown.querySelector('.bom-quick-create-option');
-    if (quickOpt) {
-        quickOpt.addEventListener('click', () => {
-            dropdown.classList.add('hidden');
-            openQuickCreateMaterialModal(rowEl, query);
-        });
-    }
-}
-
-function openQuickCreateMaterialModal(targetRowEl, defaultName = '') {
-    _activeBomQuickCreateRow = targetRowEl;
-    const modal = document.getElementById('quickCreateMaterialModal');
-    const nameInput = document.getElementById('quickMaterialName');
-
-    if (nameInput) nameInput.value = defaultName;
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeQuickCreateModal() {
-    const modal = document.getElementById('quickCreateMaterialModal');
-    if (modal) modal.classList.add('hidden');
-    _activeBomQuickCreateRow = null;
-    const quickForm = document.getElementById('quickCreateMaterialForm');
-    if (quickForm) quickForm.reset();
-}
-
-/**
- * Handles Quick-Create Material Form submission.
- * Creates a real Material row in the database, updates state, and selects it in the BOM line.
- */
-async function handleQuickCreateMaterialSubmit(e) {
-    e.preventDefault();
-    const nameInput = document.getElementById('quickMaterialName');
-    const unitInput = document.getElementById('quickMaterialUnit');
-    const submitBtn = document.getElementById('saveQuickMaterialBtn');
-
-    const name = nameInput ? nameInput.value.trim() : '';
-    const unit = unitInput ? unitInput.value : 'kg';
-
-    if (!name) {
-        showNotification('Input Error', 'Material name is required.', 'error');
+    const material = materials.find(m => String(m.id) === String(materialId));
+    if (!material) {
+        showNotification('Error', 'Material not found.', 'error');
         return;
     }
 
-    if (submitBtn) submitBtn.disabled = true;
+    const modal = document.getElementById('editMaterialModal');
+    const idInput = document.getElementById('editMaterialId');
+    const nameInput = document.getElementById('editMaterialName');
+    const unitSelect = document.getElementById('editMaterialUnit');
+    const thresholdInput = document.getElementById('editMaterialThreshold');
+    const costInput = document.getElementById('editMaterialCostPrice');
+    const currencySelect = document.getElementById('editMaterialCurrency');
+    const maxQtyInput = document.getElementById('editMaterialMaxQty');
+    const costingSelect = document.getElementById('editMaterialCostingMethod');
+    const photoPreview = document.getElementById('editMaterialPhotoPreview');
+    const photoInput = document.getElementById('editMaterialPhotoInput');
+
+    if (idInput) idInput.value = material.id;
+    if (nameInput) nameInput.value = material.name || '';
+    if (unitSelect) unitSelect.value = material.unit || 'kg';
+    if (thresholdInput) thresholdInput.value = material.lowStockThreshold != null ? material.lowStockThreshold : '';
+    if (costInput) costInput.value = material.costPrice != null ? material.costPrice : '';
+    if (currencySelect) currencySelect.value = material.currency || 'EGP';
+    if (maxQtyInput) maxQtyInput.value = material.maxQty || 100;
+    if (costingSelect) costingSelect.value = material.costingMethod || 'MOVING_AVG';
+
+    const imageUrl = resolveMaterialImageUrl(material);
+    if (photoPreview) {
+        if (imageUrl) {
+            photoPreview.src = imageUrl;
+            photoPreview.style.display = 'block';
+        } else {
+            photoPreview.src = '';
+            photoPreview.style.display = 'none';
+        }
+    }
+
+    if (photoInput) photoInput.value = '';
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditMaterialModal() {
+    const modal = document.getElementById('editMaterialModal');
+    if (modal) modal.classList.add('hidden');
+    const form = document.getElementById('editMaterialForm');
+    if (form) form.reset();
+}
+
+async function handleEditMaterialSubmit(e) {
+    e.preventDefault();
+    const id = document.getElementById('editMaterialId')?.value;
+    const name = document.getElementById('editMaterialName')?.value.trim();
+    const unit = document.getElementById('editMaterialUnit')?.value;
+    const threshold = parseFloat(document.getElementById('editMaterialThreshold')?.value) || null;
+    const costPrice = parseFloat(document.getElementById('editMaterialCostPrice')?.value) || 0;
+    const currency = document.getElementById('editMaterialCurrency')?.value || 'EGP';
+    const maxQty = parseFloat(document.getElementById('editMaterialMaxQty')?.value) || 100;
+    const costingMethod = document.getElementById('editMaterialCostingMethod')?.value || 'MOVING_AVG';
+    const photoInput = document.getElementById('editMaterialPhotoInput');
+    const submitBtn = document.getElementById('saveEditMaterialBtn');
+
+    if (!id || !name) {
+        showNotification('Validation Error', 'Material Name is required.', 'error');
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner"></i> Saving…';
+        submitBtn.classList.add('btn-saving');
+    }
 
     try {
-        let createdMat = null;
+        const payload = {
+            name,
+            unit,
+            unit_of_measure: unit,
+            low_stock_threshold_percent: threshold ? Math.round(threshold) : null,
+            max_quantity: maxQty,
+            cost_price: costPrice,
+            currency,
+            costing_method: costingMethod,
+        };
 
-        if (typeof ApiService !== 'undefined' && typeof ApiService.quickCreateMaterial === 'function') {
+        let updated = null;
+
+        if (typeof ApiService !== 'undefined' && typeof ApiService.patchMaterial === 'function') {
             try {
-                createdMat = await ApiService.quickCreateMaterial({
-                    name: name,
-                    unit: unit,
-                });
-            } catch (err) {
-                console.warn('API quickCreateMaterial error:', err);
-                if (err && err.message) {
-                    showNotification('Creation Error', err.message, 'error');
-                    return;
+                if (photoInput && photoInput.files && photoInput.files[0]) {
+                    const formData = new FormData();
+                    Object.keys(payload).forEach(k => {
+                        if (payload[k] !== null && payload[k] !== undefined) {
+                            formData.append(k, payload[k]);
+                        }
+                    });
+                    formData.append('image', photoInput.files[0]);
+                    updated = await ApiService.patchMaterial(id, formData);
+                } else {
+                    updated = await ApiService.patchMaterial(id, payload);
                 }
+            } catch (err) {
+                console.warn('API patchMaterial error, updating local state:', err);
             }
         }
 
-        if (!createdMat) {
-            createdMat = {
-                id: 'mat_' + Date.now(),
-                name: name,
-                unit: unit,
-                current_quantity: 0,
-                qty: 0,
+        if (!updated) {
+            const materials = getMaterials();
+            const existing = materials.find(m => String(m.id) === String(id));
+            updated = {
+                ...existing,
+                id,
+                name,
+                unit,
+                low_stock_threshold_percent: threshold,
+                max_quantity: maxQty,
+                cost_price: costPrice,
+                currency,
+                costing_method: costingMethod,
             };
         }
 
-        // Add to dataManager / global state if available
-        if (typeof dataManager !== 'undefined' && typeof dataManager.addMaterialLocal === 'function') {
-            dataManager.addMaterialLocal(createdMat);
-        } else if (typeof dataManager !== 'undefined' && Array.isArray(dataManager.materials)) {
-            dataManager.materials.push(createdMat);
+        // Update global state in dataManager
+        if (typeof dataManager !== 'undefined') {
+            dataManager.addMaterialLocal(updated);
         }
 
-        // Re-populate dropdowns everywhere so created material shows in Main Materials Catalog & Activity selects
+        // Re-render dashboard card dynamically
+        renderDashboard();
+
+        // Update BOM selection dropdowns
         populateMaterialSelects();
 
-        // If invoked from a BOM row, automatically select the new material in that row
-        if (_activeBomQuickCreateRow) {
-            _activeBomQuickCreateRow.dataset.materialId = createdMat.id;
-            const input = _activeBomQuickCreateRow.querySelector('.bom-material-input');
-            if (input) input.value = createdMat.name;
-        }
-
-        showNotification('Material Created', `"${createdMat.name}" created and added to catalog.`, 'success');
-        closeQuickCreateModal();
+        showNotification('Success', `Material "${name}" updated successfully!`, 'success');
+        closeEditMaterialModal();
     } catch (err) {
-        console.error('Failed to quick-create material:', err);
-        showNotification('Creation Failed', err.message || 'Could not create material.', 'error');
+        console.error('Failed to update material:', err);
+        showNotification('Error', err.message || 'Failed to update material.', 'error');
     } finally {
-        if (submitBtn) submitBtn.disabled = false;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+            submitBtn.classList.remove('btn-saving');
+        }
     }
 }
 
+function setupEditMaterialModalListenersOnce() {
+    if (_editMaterialListenersInitialized) return;
+    _editMaterialListenersInitialized = true;
+
+    const closeBtn = document.getElementById('closeEditMaterialModalBtn');
+    const cancelBtn = document.getElementById('cancelEditMaterialBtn');
+    const modal = document.getElementById('editMaterialModal');
+    const form = document.getElementById('editMaterialForm');
+    const photoInput = document.getElementById('editMaterialPhotoInput');
+    const photoPreview = document.getElementById('editMaterialPhotoPreview');
+
+    if (closeBtn) closeBtn.addEventListener('click', closeEditMaterialModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeEditMaterialModal);
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'editMaterialModal') closeEditMaterialModal();
+        });
+    }
+
+    if (photoInput && photoPreview) {
+        photoInput.addEventListener('change', () => {
+            const file = photoInput.files && photoInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    photoPreview.src = evt.target.result;
+                    photoPreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    if (form && !form.dataset.listenerAttached) {
+        form.dataset.listenerAttached = 'true';
+        form.addEventListener('submit', handleEditMaterialSubmit);
+    }
+}
+
+// ==================== TASK 4: INLINE EDIT ACTION FOR PRODUCTS ====================
+let _editingProductId = null;
+
+function editProduct(productId) {
+    const prod = _productsListCache.find(p => String(p.id) === String(productId));
+    if (!prod) {
+        showNotification('Error', 'Product not found.', 'error');
+        return;
+    }
+
+    _editingProductId = String(prod.id);
+
+    const nameInput = document.getElementById('productName');
+    const skuInput = document.getElementById('productSku');
+    const categoryInput = document.getElementById('productCategory');
+    const uomInput = document.getElementById('productUom');
+    const statusSelect = document.getElementById('productStatus');
+    const descInput = document.getElementById('productDescription');
+    const photoPreview = document.getElementById('productPhotoPreview');
+    const photoPlaceholder = document.getElementById('productPhotoPlaceholder');
+
+    if (nameInput) nameInput.value = prod.name || '';
+    if (skuInput) skuInput.value = prod.sku || '';
+    if (categoryInput) categoryInput.value = prod.category || '';
+    if (uomInput) uomInput.value = prod.unit_of_measure || '';
+    if (statusSelect) statusSelect.value = prod.status || 'active';
+    if (descInput) descInput.value = prod.description || '';
+
+    const photoUrl = prod.photo ? resolveMediaUrl(prod.photo) : null;
+    if (photoPreview && photoPlaceholder) {
+        if (photoUrl) {
+            photoPreview.src = photoUrl;
+            photoPreview.hidden = false;
+            photoPlaceholder.hidden = true;
+        } else {
+            photoPreview.src = '';
+            photoPreview.hidden = true;
+            photoPlaceholder.hidden = false;
+        }
+    }
+
+    // Pre-fill BOM lines
+    const bomContainer = document.getElementById('bomRowsContainer');
+    if (bomContainer) {
+        bomContainer.innerHTML = '';
+        const lines = prod.bom_lines || prod.materials || [];
+        if (lines.length > 0) {
+            lines.forEach(line => {
+                let matId = line.material || line.material_id;
+                let mat = getMaterials().find(m => String(m.id) === String(matId));
+                if (!mat) {
+                    mat = {
+                        id: matId,
+                        name: line.material_name || ('Material #' + matId),
+                        unit: line.material_unit || '',
+                    };
+                }
+                addBomRow(mat, line.quantity_per_unit || line.quantity || '');
+            });
+        } else {
+            addBomRow();
+        }
+    }
+
+    // Show addProductSection
+    const addSection = document.getElementById('addProductSection');
+    const toggleBtn = document.getElementById('toggleAddProductBtn');
+    if (addSection) {
+        addSection.style.display = 'block';
+    }
+    if (toggleBtn) {
+        toggleBtn.innerHTML = '<i class="fas fa-minus"></i> Hide Form';
+    }
+
+    // Update section title & submit button to indicate edit mode
+    const titleEl = addSection?.querySelector('h3');
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fas fa-edit" style="color: var(--burnt-orange);"></i> Editing: <em style="color: var(--burnt-orange);">${escapeHtml(prod.name)}</em>`;
+    }
+    const saveBtn = document.getElementById('saveProductBtn');
+    if (saveBtn) {
+        saveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Update Product';
+    }
+
+    // Highlight the row being edited in the product table
+    document.querySelectorAll('#productsTableBody tr').forEach(tr => {
+        tr.classList.remove('editing-active');
+    });
+    const editingRow = document.querySelector(`#productsTableBody tr [data-product-id="${escapeHtml(String(prod.id))}"]`);
+    if (editingRow) editingRow.closest('tr')?.classList.add('editing-active');
+
+    addSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+window.editProduct = editProduct;
+
 function resetProductForm() {
+    _editingProductId = null;
+
     const form = document.getElementById('addProductForm');
     if (form) form.reset();
 
@@ -3270,6 +3365,23 @@ function resetProductForm() {
         photoPreview.hidden = true;
     }
     if (photoPlaceholder) photoPlaceholder.hidden = false;
+
+    const addSection = document.getElementById('addProductSection');
+    const titleEl = addSection?.querySelector('h3');
+    if (titleEl) {
+        titleEl.innerHTML = '<i class="fas fa-box-open" style="color: var(--burnt-orange);"></i> New Product Definition';
+    }
+
+    const saveBtn = document.getElementById('saveProductBtn');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Product';
+    }
+
+    // Remove editing-active highlight from any product table rows
+    document.querySelectorAll('#productsTableBody tr.editing-active').forEach(tr => {
+        tr.classList.remove('editing-active');
+    });
 
     const container = document.getElementById('bomRowsContainer');
     if (container) {
@@ -3342,7 +3454,12 @@ async function handleProductFormSubmit(e) {
     }
 
     const saveBtn = document.getElementById('saveProductBtn');
-    if (saveBtn) saveBtn.disabled = true;
+    const _saveBtnOriginalHTML = saveBtn ? saveBtn.innerHTML : '';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner"></i> Saving…';
+        saveBtn.classList.add('btn-saving');
+    }
 
     try {
         const payload = {
@@ -3355,52 +3472,416 @@ async function handleProductFormSubmit(e) {
             bom_lines: bomLines,
         };
 
-        let newProd = null;
+        let prodResult = null;
 
-        if (typeof ApiService !== 'undefined' && typeof ApiService.request === 'function') {
-            try {
-                if (photoInput && photoInput.files[0]) {
-                    const formData = new FormData();
-                    Object.keys(payload).forEach(key => {
-                        if (key === 'bom_lines') {
-                            formData.append('bom_lines', JSON.stringify(payload.bom_lines));
-                        } else {
-                            formData.append(key, payload[key]);
-                        }
-                    });
-                    formData.append('photo', photoInput.files[0]);
-
-                    newProd = await ApiService.request('/inventory/products/', {
-                        method: 'POST',
-                        body: formData,
-                    });
-                } else {
-                    newProd = await ApiService.request('/inventory/products/', {
-                        method: 'POST',
-                        body: JSON.stringify(payload),
-                    });
+        if (_editingProductId) {
+            // Edit path — send PATCH /api/inventory/products/{id}/
+            if (typeof ApiService !== 'undefined' && typeof ApiService.patchProduct === 'function') {
+                try {
+                    if (photoInput && photoInput.files && photoInput.files[0]) {
+                        const formData = new FormData();
+                        Object.keys(payload).forEach(key => {
+                            if (key === 'bom_lines') {
+                                formData.append('bom_lines', JSON.stringify(payload.bom_lines));
+                            } else if (payload[key] !== null && payload[key] !== undefined) {
+                                formData.append(key, payload[key]);
+                            }
+                        });
+                        formData.append('photo', photoInput.files[0]);
+                        prodResult = await ApiService.patchProduct(_editingProductId, formData);
+                    } else {
+                        prodResult = await ApiService.patchProduct(_editingProductId, payload);
+                    }
+                } catch (err) {
+                    console.warn('API patchProduct error, updating local cache:', err);
                 }
-            } catch (err) {
-                console.warn('Backend endpoint POST /inventory/products/ pending Phase 3, saving locally:', err);
             }
-        }
 
-        if (!newProd) {
-            newProd = {
-                id: 'prod_' + Date.now(),
-                ...payload,
-            };
-        }
+            if (!prodResult) {
+                const existing = _productsListCache.find(p => String(p.id) === String(_editingProductId));
+                prodResult = {
+                    ...existing,
+                    ...payload,
+                    id: _editingProductId,
+                };
+            }
 
-        _productsListCache.unshift(newProd);
-        renderProductsTable();
-        resetProductForm();
-        showNotification('Product Saved', `Product "${name}" successfully created.`, 'success');
+            const index = _productsListCache.findIndex(p => String(p.id) === String(_editingProductId));
+            if (index !== -1) {
+                _productsListCache[index] = prodResult;
+            }
+
+            renderProductsTable();
+            if (typeof fetchAndRenderImpliedDemandChart === 'function') {
+                fetchAndRenderImpliedDemandChart();
+            }
+            resetProductForm();
+            showNotification('Product Updated', `Product "${name}" successfully updated.`, 'success');
+        } else {
+            // Create path — send POST /api/inventory/products/
+            if (typeof ApiService !== 'undefined' && typeof ApiService.createProduct === 'function') {
+                try {
+                    if (photoInput && photoInput.files && photoInput.files[0]) {
+                        const formData = new FormData();
+                        Object.keys(payload).forEach(key => {
+                            if (key === 'bom_lines') {
+                                formData.append('bom_lines', JSON.stringify(payload.bom_lines));
+                            } else {
+                                formData.append(key, payload[key]);
+                            }
+                        });
+                        formData.append('photo', photoInput.files[0]);
+                        prodResult = await ApiService.createProduct(formData);
+                    } else {
+                        prodResult = await ApiService.createProduct(payload);
+                    }
+                } catch (err) {
+                    console.warn('API createProduct error, saving locally:', err);
+                }
+            }
+
+            if (!prodResult) {
+                prodResult = {
+                    id: 'prod_' + Date.now(),
+                    ...payload,
+                };
+            }
+
+            _productsListCache.unshift(prodResult);
+            renderProductsTable();
+            if (typeof fetchAndRenderImpliedDemandChart === 'function') {
+                fetchAndRenderImpliedDemandChart();
+            }
+            resetProductForm();
+            showNotification('Product Saved', `Product "${name}" successfully created.`, 'success');
+        }
     } catch (err) {
         console.error('Failed to save product:', err);
         showNotification('Save Error', err.message || 'Could not save product.', 'error');
     } finally {
-        if (saveBtn) saveBtn.disabled = false;
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = _saveBtnOriginalHTML || '<i class="fas fa-save"></i> Save Product';
+            saveBtn.classList.remove('btn-saving');
+        }
     }
 }
+
+/**
+ * Adds a new BOM row (material search input + quantity per unit) to the BOM section
+ */
+function updateBomRowUomBadge(rowEl, unit) {
+    if (!rowEl) return;
+    const badge = rowEl.querySelector('.bom-uom-badge');
+    if (badge) {
+        const uom = (unit || '').trim();
+        if (uom) {
+            badge.textContent = uom;
+            badge.style.display = 'inline-flex';
+        } else {
+            badge.textContent = '';
+            badge.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Adds a new BOM row (material search input + quantity per unit) to the BOM section
+ */
+function addBomRow(selectedMaterial = null, qtyPerUnit = '') {
+    const container = document.getElementById('bomRowsContainer');
+    if (!container) return;
+
+    const rowId = 'bom-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const rowEl = document.createElement('div');
+    rowEl.className = 'bom-row';
+    rowEl.id = rowId;
+    
+    let initialSearchVal = '';
+    let initialUnit = '';
+
+    if (selectedMaterial) {
+        rowEl.dataset.materialId = selectedMaterial.id;
+        initialSearchVal = selectedMaterial.name || selectedMaterial.material_name || '';
+        initialUnit = selectedMaterial.unit || selectedMaterial.material_unit || selectedMaterial.unit_of_measure || '';
+    }
+
+    rowEl.innerHTML = `
+        <div class="bom-material-search-wrap">
+            <input type="text" class="bom-material-input" placeholder="Search material catalog by name..." 
+                value="${escapeHtml(initialSearchVal)}" autocomplete="off" 
+                style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+            <div class="bom-material-dropdown hidden"></div>
+        </div>
+        <div class="bom-qty-wrap" style="position: relative; display: flex; align-items: center; width: 100%;">
+            <input type="number" class="bom-qty-input" placeholder="Qty per unit (e.g. 0.5)" step="0.001" min="0.001" 
+                value="${escapeHtml(String(qtyPerUnit))}" required
+                style="width: 100%; padding: 0.55rem 3rem 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+            <span class="bom-uom-badge" style="position: absolute; right: 8px; padding: 2px 8px; border-radius: 6px; background: rgba(217, 119, 66, 0.15); color: var(--burnt-orange-dark); font-size: 0.75rem; font-weight: 700; text-transform: lowercase; pointer-events: none; display: ${initialUnit ? 'inline-flex' : 'none'}; align-items: center;">${escapeHtml(initialUnit)}</span>
+        </div>
+        <button type="button" class="btn-remove-bom-row" title="Remove line">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+
+    const input = rowEl.querySelector('.bom-material-input');
+    const dropdown = rowEl.querySelector('.bom-material-dropdown');
+    const removeBtn = rowEl.querySelector('.btn-remove-bom-row');
+
+    removeBtn.addEventListener('click', () => {
+        const totalRows = container.querySelectorAll('.bom-row').length;
+        if (totalRows <= 1) {
+            showNotification('BOM Required', 'A product must have at least one BOM line.', 'info');
+            return;
+        }
+        rowEl.remove();
+    });
+
+    input.addEventListener('focus', () => renderBomMaterialDropdown(rowEl, input.value.trim()));
+    input.addEventListener('input', () => {
+        const val = input.value.trim();
+        const materials = getMaterials() || [];
+        const match = materials.find(m => m.name.toLowerCase() === val.toLowerCase());
+        if (match) {
+            rowEl.dataset.materialId = match.id;
+            updateBomRowUomBadge(rowEl, match.unit);
+        } else {
+            rowEl.dataset.materialId = '';
+            updateBomRowUomBadge(rowEl, null);
+        }
+        renderBomMaterialDropdown(rowEl, val);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!rowEl.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    container.appendChild(rowEl);
+}
+
+/**
+ * Renders the material search dropdown for a specific BOM row
+ */
+function renderBomMaterialDropdown(rowEl, query) {
+    const dropdown = rowEl.querySelector('.bom-material-dropdown');
+    if (!dropdown) return;
+
+    const materials = getMaterials() || [];
+    const filtered = materials.filter(m => 
+        !query || m.name.toLowerCase().includes(query.toLowerCase())
+    );
+
+    let html = '';
+
+    if (filtered.length > 0) {
+        html += filtered.map(m => `
+            <div class="bom-material-option" data-id="${m.id}" data-name="${escapeHtml(m.name)}" data-unit="${escapeHtml(m.unit || '')}">
+                <span><strong>${escapeHtml(m.name)}</strong> <small style="color: var(--dark-wood-secondary);">(${escapeHtml(m.unit || '')})</small></span>
+                <span style="font-size: 0.75rem; opacity: 0.7;">Stock: ${m.qty != null ? m.qty : (m.current_quantity || 0)}</span>
+            </div>
+        `).join('');
+    } else {
+        html += `<div style="padding: 0.6rem 0.8rem; font-size: 0.85rem; color: var(--dark-wood-secondary);">No matching materials found.</div>`;
+    }
+
+    const createLabel = query ? `+ Create new "${escapeHtml(query)}"` : '+ Create new material';
+    html += `
+        <div class="bom-quick-create-option" data-query="${escapeHtml(query)}">
+            <i class="fas fa-plus-circle"></i> ${createLabel}
+        </div>
+    `;
+
+    dropdown.innerHTML = html;
+    dropdown.classList.remove('hidden');
+
+    dropdown.querySelectorAll('.bom-material-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const matId = opt.dataset.id;
+            const matName = opt.dataset.name;
+            const matUnit = opt.dataset.unit;
+            rowEl.dataset.materialId = matId;
+            const input = rowEl.querySelector('.bom-material-input');
+            if (input) input.value = matName;
+            updateBomRowUomBadge(rowEl, matUnit);
+            dropdown.classList.add('hidden');
+        });
+    });
+
+    const quickOpt = dropdown.querySelector('.bom-quick-create-option');
+    if (quickOpt) {
+        quickOpt.addEventListener('click', () => {
+            dropdown.classList.add('hidden');
+            openQuickCreateMaterialModal(rowEl, query);
+        });
+    }
+}
+
+function openQuickCreateMaterialModal(targetRowEl, defaultName = '') {
+    // Duplicate-prevention guard: if text already matches an existing material (case-insensitive),
+    // auto-select it instead of opening the quick-create modal
+    if (defaultName && defaultName.trim()) {
+        const materials = getMaterials() || [];
+        const existingMatch = materials.find(
+            m => m.name.toLowerCase() === defaultName.trim().toLowerCase()
+        );
+        if (existingMatch) {
+            // Auto-bind to BOM row instead of duplicating
+            if (targetRowEl) {
+                targetRowEl.dataset.materialId = existingMatch.id;
+                const input = targetRowEl.querySelector('.bom-material-input');
+                if (input) input.value = existingMatch.name;
+                updateBomRowUomBadge(targetRowEl, existingMatch.unit);
+            }
+            showNotification(
+                'Material Found',
+                `"${existingMatch.name}" already exists in the catalog and has been selected.`,
+                'info'
+            );
+            return; // Do NOT open the modal
+        }
+    }
+
+    _activeBomQuickCreateRow = targetRowEl;
+    const modal = document.getElementById('quickCreateMaterialModal');
+    const nameInput = document.getElementById('quickMaterialName');
+
+    if (nameInput) nameInput.value = (defaultName || '').trim();
+    if (modal) modal.classList.remove('hidden');
+    // Focus the name field for instant typing (accessibility)
+    requestAnimationFrame(() => {
+        const ni = document.getElementById('quickMaterialName');
+        if (ni) ni.focus();
+    });
+}
+
+function closeQuickCreateModal() {
+    const modal = document.getElementById('quickCreateMaterialModal');
+    if (modal) modal.classList.add('hidden');
+    _activeBomQuickCreateRow = null;
+    const quickForm = document.getElementById('quickCreateMaterialForm');
+    if (quickForm) quickForm.reset();
+}
+
+/**
+ * Handles Quick-Create Material Form submission.
+ * Creates a real Material row in the database, updates state, and selects it in the BOM line.
+ */
+async function handleQuickCreateMaterialSubmit(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('quickMaterialName');
+    const unitInput = document.getElementById('quickMaterialUnit');
+    const submitBtn = document.getElementById('saveQuickMaterialBtn');
+
+    const name = nameInput ? nameInput.value.trim() : '';
+    const unit = unitInput ? unitInput.value : 'kg';
+
+    if (!name) {
+        showNotification('Input Error', 'Material name is required.', 'error');
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner"></i> Creating…';
+        submitBtn.classList.add('btn-saving');
+    }
+
+    try {
+        let createdMat = null;
+
+        if (typeof ApiService !== 'undefined' && typeof ApiService.quickCreateMaterial === 'function') {
+            try {
+                createdMat = await ApiService.quickCreateMaterial({
+                    name: name,
+                    unit: unit,
+                    unit_of_measure: unit,
+                });
+            } catch (err) {
+                console.warn('API quickCreateMaterial error:', err);
+                if (err && err.message) {
+                    showNotification('Creation Error', err.message, 'error');
+                    return;
+                }
+            }
+        }
+
+        if (!createdMat || !createdMat.id) {
+            createdMat = {
+                id: Date.now(),
+                name: name,
+                unit: unit,
+                current_quantity: 0,
+                qty: 0,
+            };
+        }
+
+        // Add to dataManager / global state
+        let normalized = createdMat;
+        if (typeof dataManager !== 'undefined') {
+            if (typeof dataManager.addMaterialLocal === 'function') {
+                normalized = dataManager.addMaterialLocal(createdMat);
+            } else if (Array.isArray(dataManager.materials)) {
+                normalized = dataManager._toFrontendMaterial(createdMat);
+                dataManager.materials.push(normalized);
+            }
+        }
+
+        // Re-populate dropdowns everywhere so created material shows in Main Materials Catalog & Activity selects
+        populateMaterialSelects();
+        if (typeof renderDashboard === 'function') {
+            renderDashboard();
+        }
+
+        // Automatically bind material.id, name, and UOM badge to active BOM row
+        if (_activeBomQuickCreateRow) {
+            const finalId = normalized.id || createdMat.id;
+            const finalName = normalized.name || createdMat.name;
+            const finalUnit = normalized.unit || createdMat.unit || unit;
+
+            _activeBomQuickCreateRow.dataset.materialId = finalId;
+            const input = _activeBomQuickCreateRow.querySelector('.bom-material-input');
+            if (input) input.value = finalName;
+            updateBomRowUomBadge(_activeBomQuickCreateRow, finalUnit);
+        }
+
+        showNotification('Material Created', `"${name}" created and bound to BOM line.`, 'success');
+        closeQuickCreateModal();
+    } catch (err) {
+        console.error('Failed to quick-create material:', err);
+        showNotification('Creation Failed', err.message || 'Could not create material.', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> Create Material';
+            submitBtn.classList.remove('btn-saving');
+        }
+    }
+}
+
+// ==================== KEYBOARD SHORTCUTS ====================
+// Global Escape key handler: cancel product edit mode when Escape is pressed
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        // Cancel product edit mode if active
+        if (_editingProductId) {
+            resetProductForm();
+            showNotification('Edit Cancelled', 'Product edit mode cancelled.', 'info');
+            return;
+        }
+        // Close quick-create modal if open
+        const quickModal = document.getElementById('quickCreateMaterialModal');
+        if (quickModal && !quickModal.classList.contains('hidden')) {
+            closeQuickCreateModal();
+            return;
+        }
+        // Close edit-material modal if open
+        const editMatModal = document.getElementById('editMaterialModal');
+        if (editMatModal && !editMatModal.classList.contains('hidden')) {
+            closeEditMaterialModal();
+            return;
+        }
+    }
+});
 

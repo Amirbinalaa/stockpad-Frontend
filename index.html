@@ -2359,12 +2359,93 @@
             <option value="L">Liter (L)</option>
             <option value="pcs">Pieces (pcs)</option>
             <option value="m">Meter (m)</option>
+            <option value="m²">Square Meter (m²)</option>
           </select>
         </div>
         <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
           <button type="button" class="btn-outline" id="cancelQuickMaterialBtn">Cancel</button>
           <button type="submit" class="btn-primary" id="saveQuickMaterialBtn">
             <i class="fas fa-check"></i> Create Material
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <!-- EDIT MATERIAL MODAL -->
+  <div id="editMaterialModal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 520px; width: 92%;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--beige-border);">
+        <h3 style="margin: 0; font-size: 1.1rem; color: var(--dark-wood); display: flex; align-items: center; gap: 8px;">
+          <i class="fas fa-edit" style="color: var(--burnt-orange);"></i> Edit Material
+        </h3>
+        <button type="button" class="close-modal-btn" id="closeEditMaterialModalBtn" style="background: none; border: none; font-size: 1.5rem; color: var(--dark-wood-secondary); cursor: pointer;">&times;</button>
+      </div>
+      <form id="editMaterialForm">
+        <input type="hidden" id="editMaterialId" />
+        
+        <div class="form-group" style="margin-bottom: 0.85rem;">
+          <label for="editMaterialName" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Material Name *</label>
+          <input type="text" id="editMaterialName" required style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+          <div class="form-group">
+            <label for="editMaterialUnit" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Unit of Measure *</label>
+            <select id="editMaterialUnit" required style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;">
+              <option value="kg">Kilogram (kg)</option>
+              <option value="L">Liter (L)</option>
+              <option value="pcs">Pieces (pcs)</option>
+              <option value="m">Meter (m)</option>
+              <option value="m²">Square Meter (m²)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editMaterialThreshold" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Reorder Threshold (%)</label>
+            <input type="number" id="editMaterialThreshold" min="1" max="100" placeholder="e.g. 30" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+          <div class="form-group">
+            <label for="editMaterialCostPrice" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Cost Price</label>
+            <input type="number" id="editMaterialCostPrice" step="0.01" min="0" placeholder="0.00" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+          </div>
+          <div class="form-group">
+            <label for="editMaterialCurrency" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Currency</label>
+            <select id="editMaterialCurrency" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;">
+              <option value="EGP">EGP (EGP)</option>
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+          <div class="form-group">
+            <label for="editMaterialMaxQty" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Max Capacity</label>
+            <input type="number" id="editMaterialMaxQty" min="1" placeholder="100" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;" />
+          </div>
+          <div class="form-group">
+            <label for="editMaterialCostingMethod" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Costing Method</label>
+            <select id="editMaterialCostingMethod" style="width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px; border: 1px solid var(--beige-border); background: var(--input-bg); color: var(--text-primary); font-size: 0.88rem;">
+              <option value="MOVING_AVG">Moving Average</option>
+              <option value="FIFO">FIFO</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--dark-wood);">Material Photo</label>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img id="editMaterialPhotoPreview" src="" alt="Preview" style="width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--beige-border); display: none;" />
+            <input type="file" id="editMaterialPhotoInput" accept="image/*" style="font-size: 0.85rem;" />
+          </div>
+        </div>
+
+        <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--beige-border);">
+          <button type="button" class="btn-outline" id="cancelEditMaterialBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="saveEditMaterialBtn">
+            <i class="fas fa-check"></i> Save Changes
           </button>
         </div>
       </form>

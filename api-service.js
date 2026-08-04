@@ -494,9 +494,10 @@ class ApiService {
     }
 
     static patchMaterial(id, partialData) {
+        const isFormData = partialData instanceof FormData;
         return this.request(`/inventory/materials/${id}/`, {
             method: 'PATCH',
-            body: JSON.stringify(partialData),
+            body: isFormData ? partialData : JSON.stringify(partialData),
         });
     }
 
@@ -515,11 +516,24 @@ class ApiService {
         });
     }
 
-    static quickCreateMaterial(materialData) {
-        return this.request('/inventory/materials/quick-create/', {
-            method: 'POST',
-            body: JSON.stringify(materialData),
-        });
+    static async quickCreateMaterial(materialData) {
+        const payload = {
+            name: materialData.name,
+            unit: materialData.unit || materialData.unit_of_measure || 'kg',
+            unit_of_measure: materialData.unit_of_measure || materialData.unit || 'kg',
+            initial_quantity: materialData.initial_quantity ?? 0,
+        };
+        try {
+            return await this.request('/inventory/materials/quick-create/', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+        } catch (err) {
+            return await this.request('/inventory/materials/', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+        }
     }
 
     static getProducts() {
@@ -542,6 +556,14 @@ class ApiService {
         const isFormData = productData instanceof FormData;
         return this.request(`/inventory/products/${id}/`, {
             method: 'PUT',
+            body: isFormData ? productData : JSON.stringify(productData),
+        });
+    }
+
+    static patchProduct(id, productData) {
+        const isFormData = productData instanceof FormData;
+        return this.request(`/inventory/products/${id}/`, {
+            method: 'PATCH',
             body: isFormData ? productData : JSON.stringify(productData),
         });
     }
@@ -724,6 +746,20 @@ class DataManager {
         return material;
     }
 
+    addMaterialLocal(item) {
+        if (!item) return null;
+        const material = (item.qty !== undefined && item.unit !== undefined && item.name !== undefined)
+            ? item
+            : this._toFrontendMaterial(item);
+        const existingIdx = this.materials.findIndex((m) => String(m.id) === String(material.id));
+        if (existingIdx >= 0) {
+            this.materials[existingIdx] = material;
+        } else {
+            this.materials.push(material);
+        }
+        return material;
+    }
+
     async updateMaterial(id, materialData) {
         const backendData = {
             name: materialData.name,
@@ -867,7 +903,7 @@ class DataManager {
             name: m.name,
             qty: parseFloat(m.current_quantity) || 0,
             maxQty: parseFloat(m.max_quantity) || 100,
-            unit: m.unit,
+            unit: m.unit || m.unit_of_measure || 'kg',
             lowStockThreshold: m.low_stock_threshold_percent,
             costPrice: parseFloat(m.cost_price) || 0,
             currency: m.currency || 'EGP',
