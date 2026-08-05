@@ -5420,6 +5420,69 @@ overflow-y: auto !important;
     background: var(--card-bg);
 }
 
+/* Material category filter chips (dashboard search) */
+.material-category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0 0.15rem;
+}
+
+.material-category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+    background: #1e232d;
+    border: 1px solid #2e3644;
+    color: #d1d5db;
+}
+
+.material-category-chip svg {
+    flex-shrink: 0;
+}
+
+.material-category-chip:hover {
+    border-color: #3f4a5c;
+    transform: translateY(-1px);
+}
+
+.material-category-chip.is-active {
+    background: #ffffff;
+    border-color: #ffffff;
+    color: #111827;
+}
+
+.material-category-chip.is-active svg {
+    color: #111827;
+}
+
+.category-badge {
+    background-color: #1e232d;
+    border: 1px solid #2e3644;
+    color: #e2e8f0;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.category-badge svg {
+    flex-shrink: 0;
+}
+
 /* Filters Bar */
 .pp-filters {
     display: flex;

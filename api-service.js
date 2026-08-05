@@ -910,6 +910,8 @@ class DataManager {
         return {
             id: m.id,
             name: m.name,
+            category: m.category || '',
+            resolved_category: m.resolved_category || m.category_name || null,
             qty: parseFloat(m.current_quantity) || 0,
             maxQty: parseFloat(m.max_quantity) || 100,
             unit: m.unit || m.unit_of_measure || 'kg',

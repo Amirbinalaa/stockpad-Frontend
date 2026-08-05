@@ -9,6 +9,7 @@ let appLoaded = false;
 let notificationSystem = null;
 let isPendingFetching = false;
 let pendingPollInterval = null;
+let dashboardMaterialCategoryFilter = 'all';
 
 function getMaterials()    { return dataManager.getMaterials(); }
 function getTransactions() { return dataManager.getTransactions(); }
@@ -48,6 +49,7 @@ async function loadApp() {
     }
 
     showAppScreen();
+    initMaterialCategoryChips();
     renderDashboard();
     populateMaterialSelects();
     setupProductFormListenersOnce(); // Bind quickCreateMaterialForm submit + BOM row controls
@@ -274,6 +276,63 @@ function showNotification(title, message, type = 'info', duration = 5000) {
     }, duration);
 }
 
+// ==================== MATERIAL CATEGORY CHIPS ====================
+function initMaterialCategoryChips() {
+    const container = document.getElementById('materialCategoryChips');
+    if (!container || !window.MaterialCategories) return;
+
+    const { ALL_CATEGORIES, renderCategoryFilterChip } = MaterialCategories;
+    const chips = ['all', ...ALL_CATEGORIES];
+    container.innerHTML = chips
+        .map((cat) => renderCategoryFilterChip(cat, cat === dashboardMaterialCategoryFilter))
+        .join('');
+
+    container.querySelectorAll('.material-category-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            dashboardMaterialCategoryFilter = btn.dataset.category || 'all';
+            container.querySelectorAll('.material-category-chip').forEach((chip) => {
+                const isActive = chip.dataset.category === dashboardMaterialCategoryFilter;
+                chip.classList.toggle('is-active', isActive);
+                chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+            applyMaterialDashboardFilters();
+        });
+    });
+}
+
+function applyMaterialDashboardFilters() {
+    const term = (materialSearchInput?.value || '').toLowerCase().trim();
+    if (clearSearchBtn) clearSearchBtn.style.display = term ? 'flex' : 'none';
+
+    let count = 0;
+    document.querySelectorAll('.material-bar-item').forEach((bar) => {
+        const name = bar.querySelector('.material-name')?.textContent.toLowerCase() || '';
+        const category = bar.dataset.resolvedCategory || '';
+        const matchesSearch = !term || name.includes(term);
+        const matchesCategory = dashboardMaterialCategoryFilter === 'all'
+            || category === dashboardMaterialCategoryFilter;
+        const visible = matchesSearch && matchesCategory;
+        bar.style.display = visible ? 'block' : 'none';
+        if (visible) count += 1;
+    });
+
+    if (term && searchResultsInfo && searchResultsCount) {
+        searchResultsInfo.style.display = 'flex';
+        searchResultsCount.textContent = count === 0
+            ? `No materials found for "${term}"`
+            : `Found ${count} material${count !== 1 ? 's' : ''} for "${term}"`;
+        searchResultsInfo.style.color = count === 0 ? 'var(--error-red)' : 'var(--burnt-orange)';
+    } else if (searchResultsInfo) {
+        if (dashboardMaterialCategoryFilter !== 'all') {
+            searchResultsInfo.style.display = 'flex';
+            searchResultsCount.textContent = `${count} material${count !== 1 ? 's' : ''} in ${dashboardMaterialCategoryFilter}`;
+            searchResultsInfo.style.color = 'var(--burnt-orange)';
+        } else {
+            searchResultsInfo.style.display = 'none';
+        }
+    }
+}
+
 // ==================== SEARCH ====================
 const materialSearchInput = document.getElementById('materialSearch');
 const clearSearchBtn       = document.getElementById('clearSearch');
@@ -281,27 +340,8 @@ const searchResultsInfo    = document.getElementById('searchResultsInfo');
 const searchResultsCount   = document.getElementById('searchResultsCount');
 
 if (materialSearchInput && clearSearchBtn) {
-    materialSearchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase().trim();
-        clearSearchBtn.style.display = term ? 'flex' : 'none';
-
-        let count = 0;
-        document.querySelectorAll('.material-bar-item').forEach(bar => {
-            const name    = bar.querySelector('.material-name')?.textContent.toLowerCase() || '';
-            const visible = name.includes(term);
-            bar.style.display = visible ? 'block' : 'none';
-            if (visible) count++;
-        });
-
-        if (term && searchResultsInfo && searchResultsCount) {
-            searchResultsInfo.style.display = 'flex';
-            searchResultsCount.textContent  = count === 0
-                ? `No materials found for "${term}"`
-                : `Found ${count} material${count !== 1 ? 's' : ''} for "${term}"`;
-            searchResultsInfo.style.color = count === 0 ? 'var(--error-red)' : 'var(--burnt-orange)';
-        } else if (searchResultsInfo) {
-            searchResultsInfo.style.display = 'none';
-        }
+    materialSearchInput.addEventListener('input', () => {
+        applyMaterialDashboardFilters();
     });
 
     clearSearchBtn.addEventListener('click', () => {
@@ -361,6 +401,9 @@ function renderDashboard() {
     }
 
     materials.forEach(material => {
+        const resolvedCategory = MaterialCategories
+            ? MaterialCategories.resolveMaterialCategory(material)
+            : (material.resolved_category || 'Others');
         const maxQty = material.maxQty || 100;
         const percent = Math.min((material.qty / maxQty) * 100, 100);
         const threshold = (material.lowStockThreshold != null && material.lowStockThreshold > 0)
@@ -390,10 +433,12 @@ function renderDashboard() {
 
         const bar = document.createElement('div');
         bar.className = hasImage ? 'material-bar-item material-bar-item--has-image' : 'material-bar-item';
+        bar.dataset.resolvedCategory = resolvedCategory;
         bar.innerHTML = `
             <div class="material-bar-header">
                 <div class="material-info-left">
                     <span class="material-name">${escapeHtml(material.name)}</span>
+                    ${MaterialCategories ? MaterialCategories.renderCategoryBadgeHtml(resolvedCategory, 14) : ''}
                     <button type="button" class="btn-material-action-edit" data-material-id="${material.id}" data-tooltip="Edit Material">
                         <i class="fas fa-pen"></i>
                     </button>
@@ -427,6 +472,7 @@ function renderDashboard() {
         container.appendChild(bar);
     });
 
+    applyMaterialDashboardFilters();
 }
 
 // ==================== MATERIAL SELECTS ====================
@@ -4058,6 +4104,33 @@ async function loadProcurementReport(forceRefresh = false) {
 }
 
 /**
+ * Client-side procurement filters (category / risk / horizon) — shared by table + PDF export.
+ */
+function getProcurementFilteredMaterials() {
+    if (!ppReportData) return [];
+    const selectedCategory = document.getElementById('ppFilterCategory')?.value || 'all';
+    const selectedRisk = document.getElementById('ppFilterRisk')?.value || 'all';
+    const selectedHorizon = document.getElementById('ppFilterHorizon')?.value || 'all';
+    const materials = ppReportData.materials || [];
+
+    return materials.filter((item) => {
+        if (selectedCategory !== 'all' && item.category !== selectedCategory) {
+            return false;
+        }
+        if (selectedRisk !== 'all' && item.action_status !== selectedRisk) {
+            return false;
+        }
+        if (selectedHorizon !== 'all') {
+            const maxDays = parseInt(selectedHorizon, 10);
+            if (item.days_left === null || item.days_left > maxDays) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
+/**
  * Pure client-side filter and table rendering against cached ppReportData.
  */
 function renderProcurementReport() {
@@ -4105,31 +4178,9 @@ function renderProcurementReport() {
         }
     }
 
-    // 2. Read filter values
-    const selectedCategory = document.getElementById('ppFilterCategory')?.value || 'all';
-    const selectedRisk = document.getElementById('ppFilterRisk')?.value || 'all';
-    const selectedHorizon = document.getElementById('ppFilterHorizon')?.value || 'all';
-
-    // 3. Filter material rows client-side
+    // 2. Read filter values (table uses shared helper for PDF parity)
+    const filtered = getProcurementFilteredMaterials();
     const materials = ppReportData.materials || [];
-    const filtered = materials.filter(item => {
-        // Category filter
-        if (selectedCategory !== 'all' && item.category !== selectedCategory) {
-            return false;
-        }
-        // Risk level filter
-        if (selectedRisk !== 'all' && item.action_status !== selectedRisk) {
-            return false;
-        }
-        // Forecast horizon filter (Days Left)
-        if (selectedHorizon !== 'all') {
-            const maxDays = parseInt(selectedHorizon, 10);
-            if (item.days_left === null || item.days_left > maxDays) {
-                return false;
-            }
-        }
-        return true;
-    });
 
     if (filtered.length === 0) {
         if (tableCard) tableCard.style.display = 'none';
@@ -4186,9 +4237,13 @@ function renderProcurementReport() {
             `;
         }
 
+        const categoryBadge = MaterialCategories
+            ? MaterialCategories.renderCategoryBadgeHtml(item.category, 14)
+            : escapeHtml(item.category);
+
         tr.innerHTML = `
             <td><strong>${escapeHtml(item.material_name)}</strong></td>
-            <td><span class="badge" style="background:var(--beige-light);color:var(--dark-wood);">${escapeHtml(item.category)}</span></td>
+            <td>${categoryBadge}</td>
             <td>${item.current_stock.toFixed(2)} ${item.unit}</td>
             <td>${item.allocated_stock.toFixed(2)} ${item.unit}</td>
             <td><strong>${item.available_stock.toFixed(2)} ${item.unit}</strong></td>
@@ -4271,6 +4326,28 @@ function exportProcurementPdf() {
     if (!ppReportData || !ppReportData.materials) {
         showNotification('Export Error', 'No procurement data available to export.', 'error');
         return;
+    }
+
+    const filtered = getProcurementFilteredMaterials();
+    if (!filtered.length) {
+        showNotification('Export Error', 'No materials match the current filters.', 'error');
+        return;
+    }
+
+    if (window.MaterialCategories && typeof MaterialCategories.buildProcurementReportPrintHtml === 'function') {
+        const html = MaterialCategories.buildProcurementReportPrintHtml(ppReportData, filtered);
+        const printWin = window.open('', '_blank', 'noopener,noreferrer');
+        if (printWin) {
+            printWin.document.open();
+            printWin.document.write(html);
+            printWin.document.close();
+            printWin.focus();
+            printWin.onload = () => {
+                printWin.print();
+            };
+            showNotification('PDF Export', 'Use your browser print dialog to save the report as PDF.', 'success');
+            return;
+        }
     }
 
     if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
@@ -4427,7 +4504,7 @@ function exportProcurementPdf() {
         'Status',
     ]];
 
-    const tableRows = ppReportData.materials.map(item => {
+    const tableRows = filtered.map(item => {
         const usageStr = item.daily_usage !== null ? `${item.daily_usage.toFixed(2)}` : 'N/A';
         const daysStr = item.days_left !== null ? `${item.days_left}` : 'N/A';
         const idleStr = item.idle_days !== null && item.idle_days !== undefined
