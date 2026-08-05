@@ -2272,7 +2272,7 @@ h4 {
     padding: 0.72rem 1.35rem;
     border-radius: 14px;
     border: 1px solid rgba(61, 47, 38, 0.22);
-    background: linear-gradient(145deg, rgba(45, 36, 28, 0.92) 0%, rgba(61, 47, 38, 0.88) 100%);
+    background: linear-gradient(145deg, rgba(61 61 61 / 92%) 0%, rgba(37 37 37) 100%);
     color: rgba(255, 248, 240, 0.96);
     font-size: 0.88rem;
     font-weight: 600;
@@ -2338,7 +2338,7 @@ h4 {
 }
 
 .add-material-hero__placeholder {
-    color: #a89886;
+    color: #6a6a6a;
     font-size: 1.2rem;
     line-height: 1;
     display: grid;
@@ -2451,7 +2451,7 @@ h4 {
     padding: 0.9rem 1.25rem;
     border-radius: 14px;
     border: 2px solid var(--beige-border);
-    background: var(--cream-bg);
+    background: #1f1f1f;
     color: var(--dark-wood);
     font-size: 0.95rem;
     font-weight: 400;
@@ -2475,7 +2475,7 @@ h4 {
 #activityPage .add-material-form .form-group select:focus {
     border-color: var(--burnt-orange);
     box-shadow: 0 0 0 4px rgba(217, 119, 66, 0.12);
-    background: white;
+    background: #161616;
     transform: translateY(-1px);
 }
 
@@ -2797,7 +2797,7 @@ align-items: end;
 .btn-outline {
     background: transparent;
     border: 2px solid var(--burnt-orange);
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 1rem 1.5rem;
     color: var(--burnt-orange);
     font-weight: 700;
@@ -5425,7 +5425,7 @@ overflow-y: auto !important;
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-top: 0.75rem;
+    margin-top: 1.3rem;
     padding: 0 0.15rem;
 }
 
@@ -5433,15 +5433,15 @@ overflow-y: auto !important;
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.35rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.72rem;
+    padding: 0.45rem 0.95rem;
+    border-radius: 7px;
+    font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
-    background: #1e232d;
-    border: 1px solid #2e3644;
+    background: #1a1a1a;
+    border: 1px solid #2d2c2c;
     color: #d1d5db;
 }
 
@@ -5450,7 +5450,7 @@ overflow-y: auto !important;
 }
 
 .material-category-chip:hover {
-    border-color: #3f4a5c;
+    border-color: #f97316;
     transform: translateY(-1px);
 }
 
@@ -5465,12 +5465,12 @@ overflow-y: auto !important;
 }
 
 .category-badge {
-    background-color: #1e232d;
-    border: 1px solid #2e3644;
+    background-color: #1e1e1e;
+    border: 1px solid #3a3a3a;
     color: #e2e8f0;
     border-radius: 6px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 550;
     padding: 2px 8px;
     text-transform: uppercase;
     display: inline-flex;
