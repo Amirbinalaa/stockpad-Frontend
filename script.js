@@ -242,6 +242,7 @@ navItems.forEach(item => {
         else if (item.dataset.page === 'requests') loadRequestsPage();
         else if (item.dataset.page === 'products') loadProductsPage();
         else if (item.dataset.page === 'ai-insights') fetchAndRenderAIInsights();
+        else if (item.dataset.page === 'reports') handleReportsPageNavigation();
 
         // Dismiss mobile navigation overlay on click
         const sidebar = document.querySelector('.sidebar');
@@ -3947,4 +3948,405 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+/* ===========================================================================
+   PROCUREMENT & PLANNING REPORT (TAB 2) MODULE
+   =========================================================================== */
+
+let ppReportData = null;
+let ppExpandedRows = new Set();
+let ppListenersBound = false;
+
+/**
+ * Triggered when navigating to the Reports page from sidebar.
+ */
+function handleReportsPageNavigation() {
+    setupProcurementTabListenersOnce();
+    const procurementTabBtn = document.getElementById('reportTabProcurement');
+    if (procurementTabBtn && procurementTabBtn.classList.contains('active')) {
+        loadProcurementReport();
+    }
+}
+
+/**
+ * One-time binding for Sub-tabs, Filter dropdowns, and PDF Export button.
+ */
+function setupProcurementTabListenersOnce() {
+    if (ppListenersBound) return;
+    ppListenersBound = true;
+
+    // Sub-tab navigation
+    const tabLedger = document.getElementById('reportTabLedger');
+    const tabProcurement = document.getElementById('reportTabProcurement');
+    const panelLedger = document.getElementById('reportPanelLedger');
+    const panelProcurement = document.getElementById('reportPanelProcurement');
+
+    tabLedger?.addEventListener('click', () => {
+        tabLedger.classList.add('active');
+        tabProcurement?.classList.remove('active');
+        panelLedger?.classList.remove('hidden');
+        panelProcurement?.classList.add('hidden');
+    });
+
+    tabProcurement?.addEventListener('click', () => {
+        tabProcurement.classList.add('active');
+        tabLedger?.classList.remove('active');
+        panelProcurement?.classList.remove('hidden');
+        panelLedger?.classList.add('hidden');
+        loadProcurementReport();
+    });
+
+    // Client-side filter listeners
+    const categoryFilter = document.getElementById('ppFilterCategory');
+    const riskFilter = document.getElementById('ppFilterRisk');
+    const horizonFilter = document.getElementById('ppFilterHorizon');
+    const refreshBtn = document.getElementById('ppRefreshBtn');
+    const exportPdfBtn = document.getElementById('ppExportPdfBtn');
+
+    categoryFilter?.addEventListener('change', renderProcurementReport);
+    riskFilter?.addEventListener('change', renderProcurementReport);
+    horizonFilter?.addEventListener('change', renderProcurementReport);
+
+    refreshBtn?.addEventListener('click', () => loadProcurementReport(true));
+    exportPdfBtn?.addEventListener('click', exportProcurementPdf);
+}
+
+/**
+ * Fetches pre-computed analytics payload from Django DRF server.
+ */
+async function loadProcurementReport(forceRefresh = false) {
+    setupProcurementTabListenersOnce();
+
+    const loadingEl = document.getElementById('ppLoadingState');
+    const errorEl = document.getElementById('ppErrorState');
+    const emptyEl = document.getElementById('ppEmptyState');
+    const tableCard = document.getElementById('ppTableCard');
+
+    if (loadingEl) loadingEl.style.display = 'flex';
+    if (errorEl) errorEl.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (tableCard) tableCard.style.display = 'none';
+
+    try {
+        const data = await ApiService.getProcurementPlanningReport();
+        ppReportData = data;
+
+        // Populate Categories dropdown dynamically
+        const categorySelect = document.getElementById('ppFilterCategory');
+        if (categorySelect && data.categories) {
+            const currentVal = categorySelect.value || 'all';
+            categorySelect.innerHTML = '<option value="all">All Categories</option>';
+            data.categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                categorySelect.appendChild(opt);
+            });
+            categorySelect.value = currentVal;
+        }
+
+        renderProcurementReport();
+    } catch (err) {
+        console.error('Failed to load procurement report:', err);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl) {
+            errorEl.style.display = 'flex';
+            const msg = document.getElementById('ppErrorMsg');
+            if (msg) msg.textContent = err.message || 'Failed to load procurement report.';
+        }
+    }
+}
+
+/**
+ * Pure client-side filter and table rendering against cached ppReportData.
+ */
+function renderProcurementReport() {
+    if (!ppReportData) return;
+
+    const loadingEl = document.getElementById('ppLoadingState');
+    const errorEl = document.getElementById('ppErrorState');
+    const emptyEl = document.getElementById('ppEmptyState');
+    const tableCard = document.getElementById('ppTableCard');
+    const tbody = document.getElementById('ppTableBody');
+    const rowCountEl = document.getElementById('ppRowCount');
+
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (errorEl) errorEl.style.display = 'none';
+
+    // 1. Update KPI Summary Cards from server aggregations
+    const kpis = ppReportData.kpis || {};
+    const elCritical = document.getElementById('ppKpiCritical');
+    const elReorder = document.getElementById('ppKpiReorder');
+    const elBlocked = document.getElementById('ppKpiBlocked');
+    const elHealthy = document.getElementById('ppKpiHealthy');
+
+    if (elCritical) elCritical.textContent = kpis.critical_count ?? 0;
+    if (elReorder) elReorder.textContent = kpis.reorder_count ?? 0;
+    if (elBlocked) elBlocked.textContent = kpis.blocked_products_count ?? 0;
+    if (elHealthy) elHealthy.textContent = kpis.healthy_count ?? 0;
+
+    // 2. Read filter values
+    const selectedCategory = document.getElementById('ppFilterCategory')?.value || 'all';
+    const selectedRisk = document.getElementById('ppFilterRisk')?.value || 'all';
+    const selectedHorizon = document.getElementById('ppFilterHorizon')?.value || 'all';
+
+    // 3. Filter material rows client-side
+    const materials = ppReportData.materials || [];
+    const filtered = materials.filter(item => {
+        // Category filter
+        if (selectedCategory !== 'all' && item.category !== selectedCategory) {
+            return false;
+        }
+        // Risk level filter
+        if (selectedRisk !== 'all' && item.action_status !== selectedRisk) {
+            return false;
+        }
+        // Forecast horizon filter (Days Left)
+        if (selectedHorizon !== 'all') {
+            const maxDays = parseInt(selectedHorizon, 10);
+            if (item.days_left === null || item.days_left > maxDays) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        if (tableCard) tableCard.style.display = 'none';
+        if (emptyEl) emptyEl.style.display = 'flex';
+        return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (tableCard) tableCard.style.display = 'block';
+    if (tbody) tbody.innerHTML = '';
+
+    // 4. Render Table Rows
+    filtered.forEach(item => {
+        const isExpanded = ppExpandedRows.has(item.material_id);
+        const tr = document.createElement('tr');
+
+        // Status badge configuration
+        const badgeConfig = {
+            'CRITICAL': { class: 'pp-badge-critical', label: '🔴 Critical' },
+            'REORDER_SOON': { class: 'pp-badge-reorder', label: '🟡 Reorder Soon' },
+            'HEALTHY': { class: 'pp-badge-healthy', label: '🟢 Healthy' },
+            'NO_DATA': { class: 'pp-badge-nodata', label: '⚪ No Data' },
+        }[item.action_status] || { class: 'pp-badge-nodata', label: '⚪ No Data' };
+
+        const dailyUsageStr = item.daily_usage !== null
+            ? `${item.daily_usage.toFixed(2)} ${item.unit}/day`
+            : '<span style="color:#888;">N/A</span>';
+
+        const daysLeftStr = item.days_left !== null
+            ? `<strong style="color:${item.days_left <= 3 ? '#ef4444' : item.days_left <= 14 ? '#f59e0b' : 'inherit'};">${item.days_left} days</strong>`
+            : '<span style="color:#888;">N/A</span>';
+
+        const affectedCount = (item.affected_products || []).length;
+        let affectedBtnHtml = '<span style="color:#888;">None</span>';
+        if (affectedCount > 0) {
+            affectedBtnHtml = `
+                <button type="button" class="pp-expand-btn" onclick="togglePpSubrow(${item.material_id})">
+                    <i class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}"></i>
+                    ${affectedCount} Product${affectedCount > 1 ? 's' : ''}
+                </button>
+            `;
+        }
+
+        tr.innerHTML = `
+            <td><strong>${escapeHtml(item.material_name)}</strong></td>
+            <td><span class="badge" style="background:var(--beige-light);color:var(--dark-wood);">${escapeHtml(item.category)}</span></td>
+            <td>${item.current_stock.toFixed(2)} ${item.unit}</td>
+            <td>${item.allocated_stock.toFixed(2)} ${item.unit}</td>
+            <td><strong>${item.available_stock.toFixed(2)} ${item.unit}</strong></td>
+            <td>${dailyUsageStr}</td>
+            <td>${daysLeftStr}</td>
+            <td>${affectedBtnHtml}</td>
+            <td><span class="pp-status-badge ${badgeConfig.class}">${badgeConfig.label}</span></td>
+        `;
+        tbody.appendChild(tr);
+
+        // Sub-row for Affected Products & Yield Breakdown
+        if (affectedCount > 0 && isExpanded) {
+            const subTr = document.createElement('tr');
+            subTr.className = 'pp-subrow';
+            const bomChips = item.affected_products.map(prod => `
+                <div class="pp-bom-chip">
+                    <i class="fas fa-box" style="color:var(--burnt-orange);"></i>
+                    <span><strong>${escapeHtml(prod.product_name)}</strong> (${escapeHtml(prod.sku)})</span>
+                    <span style="color:var(--dark-wood-secondary);font-size:0.75rem;">
+                        · ${prod.qty_per_unit} ${item.unit}/unit → <strong>Yield: ${prod.max_yield} units</strong>
+                    </span>
+                </div>
+            `).join('');
+
+            subTr.innerHTML = `
+                <td colspan="9">
+                    <div style="margin-bottom:0.3rem;font-size:0.75rem;font-weight:700;color:var(--dark-wood-secondary);text-transform:uppercase;">
+                        📦 Bill of Materials (BOM) &amp; Yield Breakdown:
+                    </div>
+                    <div class="pp-bom-list">${bomChips}</div>
+                </td>
+            `;
+            tbody.appendChild(subTr);
+        }
+    });
+
+    if (rowCountEl) {
+        rowCountEl.textContent = `Showing ${filtered.length} of ${materials.length} total materials`;
+    }
+}
+
+/**
+ * Toggle expandable BOM sub-row for affected products.
+ */
+function togglePpSubrow(materialId) {
+    if (ppExpandedRows.has(materialId)) {
+        ppExpandedRows.delete(materialId);
+    } else {
+        ppExpandedRows.add(materialId);
+    }
+    renderProcurementReport();
+}
+
+/**
+ * Exports the Procurement & Planning Report as a Landscape PDF using jsPDF-autoTable.
+ */
+function exportProcurementPdf() {
+    if (!ppReportData || !ppReportData.materials) {
+        showNotification('Export Error', 'No procurement data available to export.', 'error');
+        return;
+    }
+
+    if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+        showNotification('Export Error', 'jsPDF library not loaded.', 'error');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'pt', 'a4'); // Landscape A4
+
+    const kpis = ppReportData.kpis || {};
+    const nowStr = new Date().toLocaleString();
+
+    // 1. Dark Theme Background (#18181b)
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setFillColor(24, 24, 27);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+    // 2. Title & Subtitle Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(249, 115, 22); // Primary Orange (#f97316)
+    doc.text('StockPad · Procurement & Planning Report', 30, 40);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(161, 161, 170); // Light Grey (#a1a1aa)
+    doc.text(`Generated: ${nowStr} | Server-calculated live stock analytics`, 30, 56);
+
+    // 3. Draw Top Summary KPI Cards Header
+    const cardY = 70;
+    const cardHeight = 44;
+    const cardWidth = (pageWidth - 60 - 3 * 12) / 4;
+
+    const kpiCards = [
+        { label: 'CRITICAL ITEMS', val: String(kpis.critical_count ?? 0), color: [239, 68, 68] },
+        { label: 'REORDER REQUIRED', val: String(kpis.reorder_count ?? 0), color: [245, 158, 11] },
+        { label: 'BLOCKED PRODUCTS', val: String(kpis.blocked_products_count ?? 0), color: [248, 113, 113] },
+        { label: 'HEALTHY MATERIALS', val: String(kpis.healthy_count ?? 0), color: [16, 185, 129] },
+    ];
+
+    kpiCards.forEach((card, idx) => {
+        const x = 30 + idx * (cardWidth + 12);
+        // Card background (#27272a)
+        doc.setFillColor(39, 39, 42);
+        doc.setDrawColor(63, 63, 70);
+        doc.roundedRect(x, cardY, cardWidth, cardHeight, 6, 6, 'FD');
+
+        // Value
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+        doc.text(card.val, x + 12, cardY + 22);
+
+        // Label
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(161, 161, 170);
+        doc.text(card.label, x + 12, cardY + 36);
+    });
+
+    // 4. Prepare Table Data (Clean Production Headers — No Bracket Tags)
+    const tableHeaders = [
+        ['Material Name', 'Category', 'Current Stock', 'Allocated', 'Available', 'Daily Usage', 'Days Left', 'Affected Products & Yield', 'Action Status']
+    ];
+
+    const tableRows = ppReportData.materials.map(item => {
+        const usageStr = item.daily_usage !== null ? `${item.daily_usage.toFixed(2)} ${item.unit}/day` : 'N/A';
+        const daysStr = item.days_left !== null ? `${item.days_left} days` : 'N/A';
+
+        const prodsStr = (item.affected_products || []).map(p =>
+            `${p.product_name} (${p.qty_per_unit} ${item.unit} → Yield: ${p.max_yield})`
+        ).join('; ') || 'None';
+
+        const statusMap = {
+            'CRITICAL': 'CRITICAL',
+            'REORDER_SOON': 'REORDER SOON',
+            'HEALTHY': 'HEALTHY',
+            'NO_DATA': 'NO DATA',
+        };
+        const statusText = statusMap[item.action_status] || 'NO DATA';
+
+        return [
+            item.material_name,
+            item.category,
+            `${item.current_stock.toFixed(2)} ${item.unit}`,
+            `${item.allocated_stock.toFixed(2)} ${item.unit}`,
+            `${item.available_stock.toFixed(2)} ${item.unit}`,
+            usageStr,
+            daysStr,
+            prodsStr,
+            statusText,
+        ];
+    });
+
+    // 5. Generate autoTable
+    doc.autoTable({
+        head: tableHeaders,
+        body: tableRows,
+        startY: 130,
+        margin: { left: 30, right: 30, bottom: 30 },
+        styles: {
+            font: 'helvetica',
+            fontSize: 8,
+            cellPadding: 6,
+            textColor: [244, 244, 245],
+            fillColor: [39, 39, 42],
+            lineColor: [63, 63, 70],
+            lineWidth: 0.5,
+        },
+        headStyles: {
+            fillColor: [24, 24, 27],
+            textColor: [249, 115, 22],
+            fontStyle: 'bold',
+            fontSize: 8.5,
+        },
+        alternateRowStyles: {
+            fillColor: [32, 32, 35],
+        },
+        didDrawPage: function (data) {
+            // Re-apply dark background to new pages if multi-page report
+            if (data.pageNumber > 1) {
+                doc.setFillColor(24, 24, 27);
+                doc.rect(0, 0, pageWidth, pageHeight, 'F');
+            }
+        }
+    });
+
+    doc.save(`StockPad_Procurement_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    showNotification('PDF Exported', 'Procurement & Planning Report exported successfully.', 'success');
+}
+
 

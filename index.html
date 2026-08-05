@@ -1492,49 +1492,179 @@
       <!-- REPORTS PAGE -->
       <div id="reportsPage" class="page">
         <h2>Reports</h2>
-        <div class="filters card">
-          <div class="filter-group">
-            <label>Material:</label>
-            <select id="reportMaterial">
-              <option value="all">All Materials</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Type:</label>
-            <select id="reportType">
-              <option value="both">IN &amp; OUT</option>
-              <option value="in">IN only</option>
-              <option value="out">OUT only</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label>Period:</label>
-            <select id="reportPeriod">
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="specific">Specific Date</option>
-              <option value="all">All Time</option>
-            </select>
-          </div>
-          <div class="filter-group" id="specificDateGroup" style="display: none;">
-            <label>Select Date:</label>
-            <input type="date" id="specificDate" />
-          </div>
-          <button id="generateReportBtn" class="btn-primary">Generate Report</button>
+
+        <!-- ── Sub-tab navigation ─────────────────────────────── -->
+        <div class="report-tabs" id="reportTabNav">
+          <button class="report-tab-btn active" data-report-tab="ledger" id="reportTabLedger">
+            <i class="fas fa-list-ul"></i> Material Movement Ledger
+          </button>
+          <button class="report-tab-btn" data-report-tab="procurement" id="reportTabProcurement">
+            <i class="fas fa-boxes-stacked"></i> Procurement &amp; Planning
+          </button>
         </div>
-        <div class="report-export-bar" id="reportExportBar" style="display:none; margin-bottom:1rem;">
-          <button id="exportCsvBtn" class="btn-outline" style="display:inline-flex;align-items:center;gap:8px;"><i
-              class="fas fa-file-csv"></i> Export CSV</button>
-          <button id="exportXlsxBtn" class="btn-outline"
-            style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;"><i class="fas fa-file-excel"></i>
-            Export XLSX</button>
+
+        <!-- ══════════════════════════════════════════════════════
+             TAB 1 — MATERIAL MOVEMENT LEDGER (existing)
+        ═══════════════════════════════════════════════════════ -->
+        <div id="reportPanelLedger" class="report-panel">
+          <div class="filters card">
+            <div class="filter-group">
+              <label>Material:</label>
+              <select id="reportMaterial">
+                <option value="all">All Materials</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>Type:</label>
+              <select id="reportType">
+                <option value="both">IN &amp; OUT</option>
+                <option value="in">IN only</option>
+                <option value="out">OUT only</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>Period:</label>
+              <select id="reportPeriod">
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="specific">Specific Date</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+            <div class="filter-group" id="specificDateGroup" style="display: none;">
+              <label>Select Date:</label>
+              <input type="date" id="specificDate" />
+            </div>
+            <button id="generateReportBtn" class="btn-primary">Generate Report</button>
+          </div>
+          <div class="report-export-bar" id="reportExportBar" style="display:none; margin-bottom:1rem;">
+            <button id="exportCsvBtn" class="btn-outline" style="display:inline-flex;align-items:center;gap:8px;"><i
+                class="fas fa-file-csv"></i> Export CSV</button>
+            <button id="exportXlsxBtn" class="btn-outline"
+              style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;"><i class="fas fa-file-excel"></i>
+              Export XLSX</button>
+          </div>
+          <div class="card" id="reportContainer" style="display: none;">
+            <div id="reportSummary" class="report-summary"></div>
+            <div id="reportTable" class="table-responsive"></div>
+          </div>
         </div>
-        <div class="card" id="reportContainer" style="display: none;">
-          <div id="reportSummary" class="report-summary"></div>
-          <div id="reportTable" class="table-responsive"></div>
-        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             TAB 2 — PROCUREMENT & PLANNING
+        ═══════════════════════════════════════════════════════ -->
+        <div id="reportPanelProcurement" class="report-panel hidden">
+
+          <!-- Filters row -->
+          <div class="pp-filters card" id="ppFiltersBar">
+            <div class="filter-group">
+              <label for="ppFilterCategory">Category</label>
+              <select id="ppFilterCategory">
+                <option value="all">All Categories</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="ppFilterRisk">Risk Level</label>
+              <select id="ppFilterRisk">
+                <option value="all">All</option>
+                <option value="CRITICAL">🔴 Critical</option>
+                <option value="REORDER_SOON">🟡 Reorder Soon</option>
+                <option value="HEALTHY">🟢 Healthy</option>
+                <option value="NO_DATA">⚪ No Data</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="ppFilterHorizon">Forecast Horizon</label>
+              <select id="ppFilterHorizon">
+                <option value="all">All</option>
+                <option value="7">Next 7 Days</option>
+                <option value="30">Next 30 Days</option>
+              </select>
+            </div>
+            <button id="ppRefreshBtn" class="btn-outline" title="Refresh procurement data">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+            <button id="ppExportPdfBtn" class="btn-primary" style="margin-left:auto;">
+              <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+          </div>
+
+          <!-- KPI Summary Cards -->
+          <div class="pp-kpi-grid" id="ppKpiGrid">
+            <div class="pp-kpi-card pp-kpi-critical">
+              <div class="pp-kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+              <div class="pp-kpi-body">
+                <span class="pp-kpi-value" id="ppKpiCritical">—</span>
+                <span class="pp-kpi-label">CRITICAL ITEMS</span>
+              </div>
+            </div>
+            <div class="pp-kpi-card pp-kpi-reorder">
+              <div class="pp-kpi-icon"><i class="fas fa-shopping-cart"></i></div>
+              <div class="pp-kpi-body">
+                <span class="pp-kpi-value" id="ppKpiReorder">—</span>
+                <span class="pp-kpi-label">REORDER REQUIRED</span>
+              </div>
+            </div>
+            <div class="pp-kpi-card pp-kpi-blocked">
+              <div class="pp-kpi-icon"><i class="fas fa-ban"></i></div>
+              <div class="pp-kpi-body">
+                <span class="pp-kpi-value" id="ppKpiBlocked">—</span>
+                <span class="pp-kpi-label">BLOCKED PRODUCTS</span>
+              </div>
+            </div>
+            <div class="pp-kpi-card pp-kpi-healthy">
+              <div class="pp-kpi-icon"><i class="fas fa-check-circle"></i></div>
+              <div class="pp-kpi-body">
+                <span class="pp-kpi-value" id="ppKpiHealthy">—</span>
+                <span class="pp-kpi-label">HEALTHY MATERIALS</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loading / Error states -->
+          <div id="ppLoadingState" class="pp-state-card" style="display:none;">
+            <i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#f97316;"></i>
+            <p>Calculating procurement analytics…</p>
+          </div>
+          <div id="ppErrorState" class="pp-state-card" style="display:none;">
+            <i class="fas fa-exclamation-circle" style="font-size:2rem;color:#c94a28;"></i>
+            <p id="ppErrorMsg">Failed to load procurement data.</p>
+            <button class="btn-outline" onclick="loadProcurementReport()">Retry</button>
+          </div>
+          <div id="ppEmptyState" class="pp-state-card" style="display:none;">
+            <i class="fas fa-box-open" style="font-size:2.5rem;color:#a0a0a0;"></i>
+            <p>No materials match the current filters.</p>
+          </div>
+
+          <!-- Main table -->
+          <div class="card pp-table-card" id="ppTableCard" style="display:none;">
+            <div class="table-responsive">
+              <table class="pp-table" id="ppMainTable">
+                <thead>
+                  <tr>
+                    <th>Material Name</th>
+                    <th>Category</th>
+                    <th>Current Stock</th>
+                    <th>Allocated</th>
+                    <th>Available</th>
+                    <th>Daily Usage</th>
+                    <th>Days Left</th>
+                    <th>Affected Products</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="ppTableBody"></tbody>
+              </table>
+            </div>
+            <div class="pp-table-footer" id="ppTableFooter">
+              <span id="ppRowCount" style="font-size:0.8rem;color:var(--dark-wood-secondary);"></span>
+            </div>
+          </div>
+
+        </div><!-- /reportPanelProcurement -->
       </div>
+
       <!-- SETTINGS PAGE -->
       <div id="settingsPage" class="page">
         <h2>Settings</h2>
@@ -2016,6 +2146,8 @@
   <!-- =============================================
        SCRIPTS
   ============================================= -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
   <script src="config.js"></script>
   <script src="api-service.js"></script>

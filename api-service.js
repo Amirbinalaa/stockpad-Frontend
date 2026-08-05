@@ -695,6 +695,15 @@ class ApiService {
             method: 'DELETE',
         });
     }
+
+    /**
+     * GET /api/reports/procurement-planning/
+     * Returns pre-computed server-side analytics: KPIs, material rows,
+     * allocated stock, burn rate, days left, BOM yield breakdown.
+     */
+    static getProcurementPlanningReport() {
+        return this.request('/reports/procurement-planning/');
+    }
 }
 
 // ==================== DATA MANAGER ====================

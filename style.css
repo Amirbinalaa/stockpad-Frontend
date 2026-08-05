@@ -5383,4 +5383,272 @@ overflow-y: auto !important;
     background: rgba(249, 115, 22, 0.12);
 }
 
+/* =============================================
+   PROCUREMENT & PLANNING REPORT (TAB 2)
+   ============================================= */
+.report-tabs {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--beige-border);
+    padding-bottom: 0.5rem;
+}
+
+.report-tab-btn {
+    background: transparent;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--dark-wood-secondary);
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.report-tab-btn:hover {
+    color: var(--burnt-orange, #f97316);
+    background: var(--beige-light);
+}
+
+.report-tab-btn.active {
+    color: #f97316;
+    border-bottom: 3px solid #f97316;
+    background: var(--card-bg);
+}
+
+/* Filters Bar */
+.pp-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+/* KPI Summary Cards Grid */
+.pp-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+}
+
+.pp-kpi-card {
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pp-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.pp-kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+.pp-kpi-critical .pp-kpi-icon {
+    background: rgba(220, 38, 38, 0.18);
+    color: #ef4444;
+}
+
+.pp-kpi-reorder .pp-kpi-icon {
+    background: rgba(245, 158, 11, 0.18);
+    color: #f59e0b;
+}
+
+.pp-kpi-blocked .pp-kpi-icon {
+    background: rgba(239, 68, 68, 0.18);
+    color: #f87171;
+}
+
+.pp-kpi-healthy .pp-kpi-icon {
+    background: rgba(16, 185, 129, 0.18);
+    color: #10b981;
+}
+
+.pp-kpi-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.pp-kpi-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #f4f4f5;
+    line-height: 1.1;
+}
+
+.pp-kpi-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #a1a1aa;
+    margin-top: 4px;
+}
+
+/* State cards (loading/error/empty) */
+.pp-state-card {
+    background: var(--card-bg);
+    border: 1px solid var(--beige-border);
+    border-radius: 12px;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: var(--dark-wood-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Table styling */
+.pp-table-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.pp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.pp-table th {
+    background: #18181b;
+    color: #f97316;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.85rem 1rem;
+    text-align: left;
+    border-bottom: 2px solid #27272a;
+}
+
+.pp-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--beige-border);
+    color: var(--dark-wood);
+    vertical-align: middle;
+}
+
+.pp-table tbody tr:hover {
+    background: rgba(249, 115, 22, 0.04);
+}
+
+.pp-table-footer {
+    padding: 0.75rem 1rem;
+    background: var(--beige-light);
+    border-top: 1px solid var(--beige-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Status Badges */
+.pp-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pp-badge-critical {
+    background: rgba(220, 38, 38, 0.15);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.pp-badge-reorder {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.pp-badge-healthy {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pp-badge-nodata {
+    background: rgba(156, 163, 175, 0.15);
+    color: #6b7280;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+/* Expandable BOM Sub-row */
+.pp-expand-btn {
+    background: transparent;
+    border: 1px solid var(--beige-border);
+    color: var(--dark-wood);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition-smooth);
+}
+
+.pp-expand-btn:hover {
+    border-color: #f97316;
+    color: #f97316;
+}
+
+.pp-subrow {
+    background: var(--beige-lighter, #fafafa);
+}
+
+.pp-subrow td {
+    padding: 0.75rem 1.5rem 0.75rem 2.5rem;
+    border-bottom: 1px solid var(--beige-border);
+}
+
+.pp-bom-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.pp-bom-chip {
+    background: var(--card-bg);
+    border: 1px solid var(--beige-border);
+    border-radius: 8px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pp-bom-chip strong {
+    color: #f97316;
+}
+
+
 
