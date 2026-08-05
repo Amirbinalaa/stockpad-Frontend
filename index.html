@@ -1590,7 +1590,16 @@
             </button>
           </div>
 
-          <!-- KPI Summary Cards -->
+          <!-- Dead Stock + KPI Summary -->
+          <div class="pp-deadstock-banner card" id="ppDeadStockBanner" style="display:none;">
+            <div class="pp-deadstock-banner-icon"><i class="fas fa-coins"></i></div>
+            <div class="pp-deadstock-banner-body">
+              <span class="pp-deadstock-banner-label">Dead Stock Value at Risk</span>
+              <span class="pp-deadstock-banner-value" id="ppDeadStockValue">—</span>
+              <span class="pp-deadstock-banner-meta" id="ppDeadStockMeta"></span>
+            </div>
+          </div>
+
           <div class="pp-kpi-grid" id="ppKpiGrid">
             <div class="pp-kpi-card pp-kpi-critical">
               <div class="pp-kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -1650,6 +1659,8 @@
                     <th>Available</th>
                     <th>Daily Usage</th>
                     <th>Days Left</th>
+                    <th>Idle Days</th>
+                    <th>Aging Action</th>
                     <th>Affected Products</th>
                     <th>Status</th>
                   </tr>

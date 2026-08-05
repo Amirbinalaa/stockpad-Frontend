@@ -4085,6 +4085,26 @@ function renderProcurementReport() {
     if (elBlocked) elBlocked.textContent = kpis.blocked_products_count ?? 0;
     if (elHealthy) elHealthy.textContent = kpis.healthy_count ?? 0;
 
+    const deadBanner = document.getElementById('ppDeadStockBanner');
+    const deadValueEl = document.getElementById('ppDeadStockValue');
+    const deadMetaEl = document.getElementById('ppDeadStockMeta');
+    const deadStockValue = kpis.dead_stock_value_egp ?? 0;
+    if (deadBanner && deadValueEl) {
+        if (deadStockValue > 0) {
+            deadBanner.style.display = 'flex';
+            deadValueEl.textContent = formatProcurementDeadStockValue(deadStockValue);
+            if (deadMetaEl) {
+                const count = kpis.dead_stock_count ?? 0;
+                const breakdown = kpis.dead_stock_breakdown || '';
+                deadMetaEl.textContent = breakdown
+                    ? `${count} stagnant SKU${count === 1 ? '' : 's'} · ${breakdown}`
+                    : `${count} stagnant SKU${count === 1 ? '' : 's'}`;
+            }
+        } else {
+            deadBanner.style.display = 'none';
+        }
+    }
+
     // 2. Read filter values
     const selectedCategory = document.getElementById('ppFilterCategory')?.value || 'all';
     const selectedRisk = document.getElementById('ppFilterRisk')?.value || 'all';
@@ -4142,6 +4162,19 @@ function renderProcurementReport() {
             ? `<strong style="color:${item.days_left <= 3 ? '#ef4444' : item.days_left <= 14 ? '#f59e0b' : 'inherit'};">${item.days_left} days</strong>`
             : '<span style="color:#888;">N/A</span>';
 
+        const idleDaysStr = item.idle_days !== null && item.idle_days !== undefined
+            ? `<span style="color:${item.is_dead_stock ? '#ef4444' : 'inherit'};">${item.idle_days}d Idle</span>`
+            : '<span style="color:#888;">—</span>';
+
+        const agingBadgeClass = {
+            ACTIVE: 'pp-aging-active',
+            RELOCATE: 'pp-aging-relocate',
+            LIQUIDATE: 'pp-aging-liquidate',
+        }[item.aging_action] || 'pp-aging-active';
+        const agingActionStr = item.aging_action
+            ? `<span class="pp-aging-badge ${agingBadgeClass}">${item.aging_action}</span>`
+            : '<span style="color:#888;">—</span>';
+
         const affectedCount = (item.affected_products || []).length;
         let affectedBtnHtml = '<span style="color:#888;">None</span>';
         if (affectedCount > 0) {
@@ -4161,6 +4194,8 @@ function renderProcurementReport() {
             <td><strong>${item.available_stock.toFixed(2)} ${item.unit}</strong></td>
             <td>${dailyUsageStr}</td>
             <td>${daysLeftStr}</td>
+            <td>${idleDaysStr}</td>
+            <td>${agingActionStr}</td>
             <td>${affectedBtnHtml}</td>
             <td><span class="pp-status-badge ${badgeConfig.class}">${badgeConfig.label}</span></td>
         `;
@@ -4181,7 +4216,7 @@ function renderProcurementReport() {
             `).join('');
 
             subTr.innerHTML = `
-                <td colspan="9">
+                <td colspan="11">
                     <div style="margin-bottom:0.3rem;font-size:0.75rem;font-weight:700;color:var(--dark-wood-secondary);text-transform:uppercase;">
                         📦 Bill of Materials (BOM) &amp; Yield Breakdown:
                     </div>
@@ -4210,7 +4245,27 @@ function togglePpSubrow(materialId) {
 }
 
 /**
- * Exports the Procurement & Planning Report as a Landscape PDF using jsPDF-autoTable.
+ * Format dead-stock capital for procurement KPI banner / PDF header.
+ */
+function formatProcurementDeadStockValue(valueEgp) {
+    const val = Number(valueEgp) || 0;
+    if (val >= 1000000) return `EGP ${(val / 1000000).toFixed(1)}M at risk`;
+    if (val >= 1000) return `EGP ${(val / 1000).toFixed(1)}k at risk`;
+    return `EGP ${val.toFixed(0)} at risk`;
+}
+
+/**
+ * Build yield summary string using ASCII arrow for PDF-safe rendering.
+ */
+function formatProcurementYieldSummary(item, useUnicodeArrow = true) {
+    const arrow = useUnicodeArrow ? '\u2192' : '->';
+    return (item.affected_products || []).map(p =>
+        `${p.product_name} (${p.qty_per_unit} ${item.unit} ${arrow} Yield: ${p.max_yield})`
+    ).join('; ') || 'None';
+}
+
+/**
+ * Exports the Procurement & Planning Executive Report as A4 Landscape PDF.
  */
 function exportProcurementPdf() {
     if (!ppReportData || !ppReportData.materials) {
@@ -4224,33 +4279,76 @@ function exportProcurementPdf() {
     }
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'pt', 'a4'); // Landscape A4
+    const doc = new jsPDF('l', 'pt', 'a4');
 
-    const kpis = ppReportData.kpis || {};
-    const nowStr = new Date().toLocaleString();
-
-    // 1. Dark Theme Background (#18181b)
+    const margin = 28.35; // 10mm
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const contentWidth = pageWidth - margin * 2;
+
+    const kpis = ppReportData.kpis || {};
+    const summary = ppReportData.executive_summary || {};
+    const nowStr = new Date().toLocaleString();
+
+    // Dark page background
     doc.setFillColor(24, 24, 27);
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-    // 2. Title & Subtitle Header
+    let cursorY = margin;
+
+    // Logo (if loaded in DOM)
+    const logoEl = document.querySelector('.brand-logo');
+    if (logoEl && logoEl.complete && logoEl.naturalWidth) {
+        try {
+            doc.addImage(logoEl, 'PNG', margin, cursorY - 4, 28, 28);
+        } catch (_) { /* skip logo if canvas taint */ }
+    }
+
+    // Header
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(249, 115, 22); // Primary Orange (#f97316)
-    doc.text('StockPad · Procurement & Planning Report', 30, 40);
+    doc.setFontSize(16);
+    doc.setTextColor(249, 115, 22);
+    doc.text('StockPad Executive Report', margin + 36, cursorY + 10);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(161, 161, 170); // Light Grey (#a1a1aa)
-    doc.text(`Generated: ${nowStr} | Server-calculated live stock analytics`, 30, 56);
+    doc.setFontSize(8.5);
+    doc.setTextColor(161, 161, 170);
+    doc.text('Procurement, Planning & Dead Stock Analytics', margin + 36, cursorY + 22);
+    doc.text(`Generated: ${nowStr}`, pageWidth - margin, cursorY + 10, { align: 'right' });
 
-    // 3. Draw Top Summary KPI Cards Header
-    const cardY = 70;
-    const cardHeight = 44;
-    const cardWidth = (pageWidth - 60 - 3 * 12) / 4;
+    cursorY += 38;
 
+    // Dead Stock Value Banner
+    const deadStockValue = kpis.dead_stock_value_egp ?? 0;
+    doc.setFillColor(39, 39, 42);
+    doc.setDrawColor(239, 68, 68);
+    doc.setLineWidth(1);
+    doc.roundedRect(margin, cursorY, contentWidth, 34, 4, 4, 'FD');
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(63, 63, 70);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(161, 161, 170);
+    doc.text('DEAD STOCK VALUE AT RISK', margin + 12, cursorY + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(249, 115, 22);
+    doc.text(formatProcurementDeadStockValue(deadStockValue), margin + 12, cursorY + 26);
+
+    const deadMeta = `${kpis.dead_stock_count ?? 0} stagnant SKU(s)`;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(161, 161, 170);
+    doc.text(deadMeta, pageWidth - margin - 12, cursorY + 22, { align: 'right' });
+
+    cursorY += 44;
+
+    // KPI Cards
+    const cardHeight = 40;
+    const cardGap = 10;
+    const cardWidth = (contentWidth - cardGap * 3) / 4;
     const kpiCards = [
         { label: 'CRITICAL ITEMS', val: String(kpis.critical_count ?? 0), color: [239, 68, 68] },
         { label: 'REORDER REQUIRED', val: String(kpis.reorder_count ?? 0), color: [245, 158, 11] },
@@ -4259,94 +4357,151 @@ function exportProcurementPdf() {
     ];
 
     kpiCards.forEach((card, idx) => {
-        const x = 30 + idx * (cardWidth + 12);
-        // Card background (#27272a)
+        const x = margin + idx * (cardWidth + cardGap);
         doc.setFillColor(39, 39, 42);
         doc.setDrawColor(63, 63, 70);
-        doc.roundedRect(x, cardY, cardWidth, cardHeight, 6, 6, 'FD');
+        doc.roundedRect(x, cursorY, cardWidth, cardHeight, 5, 5, 'FD');
 
-        // Value
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
+        doc.setFontSize(13);
         doc.setTextColor(card.color[0], card.color[1], card.color[2]);
-        doc.text(card.val, x + 12, cardY + 22);
+        doc.text(card.val, x + 10, cursorY + 20);
 
-        // Label
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
+        doc.setFontSize(6.5);
         doc.setTextColor(161, 161, 170);
-        doc.text(card.label, x + 12, cardY + 36);
+        doc.text(card.label, x + 10, cursorY + 32);
     });
 
-    // 4. Prepare Table Data (Clean Production Headers — No Bracket Tags)
-    const tableHeaders = [
-        ['Material Name', 'Category', 'Current Stock', 'Allocated', 'Available', 'Daily Usage', 'Days Left', 'Affected Products & Yield', 'Action Status']
-    ];
+    cursorY += cardHeight + 12;
+
+    // Executive Action Summary Box
+    const bottlenecks = summary.critical_bottlenecks || [];
+    const idleWarnings = summary.idle_stock_warnings || [];
+    const summaryLines = [];
+
+    bottlenecks.slice(0, 3).forEach(item => {
+        const products = (item.blocked_products || []).slice(0, 2).join(', ');
+        summaryLines.push(
+            `CRITICAL: ${item.material_name} blocking yield for ${products || 'finished products'}.`
+        );
+    });
+    idleWarnings.slice(0, 3).forEach(item => {
+        summaryLines.push(
+            `IDLE STOCK: ${item.material_name} (${item.idle_days}d) — recommend ${item.aging_action}.`
+        );
+    });
+    if (!summaryLines.length) {
+        summaryLines.push('No immediate critical bottlenecks or idle-stock liquidation alerts.');
+    }
+
+    const summaryHeight = 18 + summaryLines.length * 11;
+    doc.setFillColor(32, 32, 36);
+    doc.setDrawColor(249, 115, 22);
+    doc.roundedRect(margin, cursorY, contentWidth, summaryHeight, 4, 4, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(249, 115, 22);
+    doc.text('EXECUTIVE ACTION SUMMARY', margin + 10, cursorY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(212, 212, 216);
+    summaryLines.forEach((line, i) => {
+        doc.text(line, margin + 10, cursorY + 24 + i * 11, { maxWidth: contentWidth - 20 });
+    });
+
+    cursorY += summaryHeight + 10;
+
+    // Main analytics table
+    const tableHeaders = [[
+        'Material & Category',
+        'Current',
+        'Allocated',
+        'Available',
+        'Daily Usage',
+        'Days Left',
+        'Idle & Action',
+        'Products & Yield',
+        'Status',
+    ]];
 
     const tableRows = ppReportData.materials.map(item => {
-        const usageStr = item.daily_usage !== null ? `${item.daily_usage.toFixed(2)} ${item.unit}/day` : 'N/A';
-        const daysStr = item.days_left !== null ? `${item.days_left} days` : 'N/A';
-
-        const prodsStr = (item.affected_products || []).map(p =>
-            `${p.product_name} (${p.qty_per_unit} ${item.unit} → Yield: ${p.max_yield})`
-        ).join('; ') || 'None';
+        const usageStr = item.daily_usage !== null ? `${item.daily_usage.toFixed(2)}` : 'N/A';
+        const daysStr = item.days_left !== null ? `${item.days_left}` : 'N/A';
+        const idleStr = item.idle_days !== null && item.idle_days !== undefined
+            ? `${item.idle_days}d`
+            : '—';
+        const agingStr = item.aging_action || 'ACTIVE';
+        const materialCell = `${item.material_name}\n${item.category}`;
+        const stockUnit = item.unit;
 
         const statusMap = {
-            'CRITICAL': 'CRITICAL',
-            'REORDER_SOON': 'REORDER SOON',
-            'HEALTHY': 'HEALTHY',
-            'NO_DATA': 'NO DATA',
+            CRITICAL: 'CRITICAL',
+            REORDER_SOON: 'REORDER',
+            HEALTHY: 'HEALTHY',
+            NO_DATA: 'NO DATA',
         };
-        const statusText = statusMap[item.action_status] || 'NO DATA';
 
         return [
-            item.material_name,
-            item.category,
-            `${item.current_stock.toFixed(2)} ${item.unit}`,
-            `${item.allocated_stock.toFixed(2)} ${item.unit}`,
-            `${item.available_stock.toFixed(2)} ${item.unit}`,
+            materialCell,
+            `${item.current_stock.toFixed(2)} ${stockUnit}`,
+            `${item.allocated_stock.toFixed(2)} ${stockUnit}`,
+            `${item.available_stock.toFixed(2)} ${stockUnit}`,
             usageStr,
             daysStr,
-            prodsStr,
-            statusText,
+            `${idleStr} / ${agingStr}`,
+            formatProcurementYieldSummary(item, false),
+            statusMap[item.action_status] || 'NO DATA',
         ];
     });
 
-    // 5. Generate autoTable
     doc.autoTable({
         head: tableHeaders,
         body: tableRows,
-        startY: 130,
-        margin: { left: 30, right: 30, bottom: 30 },
+        startY: cursorY,
+        margin: { left: margin, right: margin, bottom: margin },
+        tableWidth: contentWidth,
         styles: {
             font: 'helvetica',
-            fontSize: 8,
-            cellPadding: 6,
+            fontSize: 7,
+            cellPadding: 4,
             textColor: [244, 244, 245],
             fillColor: [39, 39, 42],
             lineColor: [63, 63, 70],
-            lineWidth: 0.5,
+            lineWidth: 0.4,
+            overflow: 'linebreak',
         },
         headStyles: {
             fillColor: [24, 24, 27],
             textColor: [249, 115, 22],
             fontStyle: 'bold',
-            fontSize: 8.5,
+            fontSize: 7.5,
+            halign: 'left',
+        },
+        columnStyles: {
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' },
+            6: { halign: 'right' },
+            8: { halign: 'center' },
         },
         alternateRowStyles: {
             fillColor: [32, 32, 35],
         },
-        didDrawPage: function (data) {
-            // Re-apply dark background to new pages if multi-page report
+        didDrawPage(data) {
             if (data.pageNumber > 1) {
                 doc.setFillColor(24, 24, 27);
                 doc.rect(0, 0, pageWidth, pageHeight, 'F');
             }
-        }
+        },
     });
 
-    doc.save(`StockPad_Procurement_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-    showNotification('PDF Exported', 'Procurement & Planning Report exported successfully.', 'success');
+    doc.save(`StockPad_Executive_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    showNotification('PDF Exported', 'Executive Procurement & Dead Stock Report exported successfully.', 'success');
 }
 
 

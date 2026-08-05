@@ -5431,6 +5431,80 @@ overflow-y: auto !important;
 }
 
 /* KPI Summary Cards Grid */
+.pp-deadstock-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #27272a 0%, #1f1f23 100%);
+    border: 1px solid #ef4444;
+    border-left: 4px solid #ef4444;
+}
+
+.pp-deadstock-banner-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    font-size: 1.2rem;
+}
+
+.pp-deadstock-banner-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+}
+
+.pp-deadstock-banner-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a1a1aa;
+    width: 100%;
+}
+
+.pp-deadstock-banner-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #f97316;
+}
+
+.pp-deadstock-banner-meta {
+    font-size: 0.8rem;
+    color: #71717a;
+}
+
+.pp-aging-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.pp-aging-active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.pp-aging-relocate {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.pp-aging-liquidate {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
 .pp-kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
