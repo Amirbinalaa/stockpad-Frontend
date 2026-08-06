@@ -246,27 +246,42 @@ class AuthService {
         return data;
     }
 
+    static _refreshPromise = null;
+
     static async refreshAccessToken() {
         const refreshToken = localStorage.getItem(REFRESH_STORAGE_KEY);
-        if (!refreshToken) return false;
+        if (!refreshToken) return { success: false, isInvalidToken: true };
 
-        try {
-            const response = await fetch(StockPadConfig.resolveApiUrl('/token/refresh/'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: refreshToken }),
-            });
-
-            if (!response.ok) return false;
-
-            const data = await response.json();
-            if (!data.access) return false;
-
-            localStorage.setItem(TOKEN_STORAGE_KEY, data.access);
-            return true;
-        } catch {
-            return false;
+        if (this._refreshPromise) {
+            return this._refreshPromise;
         }
+
+        this._refreshPromise = (async () => {
+            try {
+                const response = await fetch(StockPadConfig.resolveApiUrl('/token/refresh/'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: refreshToken }),
+                });
+
+                if (!response.ok) {
+                    const isInvalidToken = response.status === 400 || response.status === 401;
+                    return { success: false, isInvalidToken };
+                }
+
+                const data = await response.json();
+                if (!data.access) return { success: false, isInvalidToken: true };
+
+                localStorage.setItem(TOKEN_STORAGE_KEY, data.access);
+                return { success: true, isInvalidToken: false };
+            } catch (err) {
+                return { success: false, isInvalidToken: false, error: err };
+            } finally {
+                this._refreshPromise = null;
+            }
+        })();
+
+        return this._refreshPromise;
     }
 
     static async fetchProfile() {
@@ -382,14 +397,14 @@ class AuthService {
         }
     }
 
-    static isTokenExpired() {
+    static isTokenExpired(bufferMs = 60000) {
         const token = this.getToken();
         if (!token) return true;
 
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             if (!payload.exp) return true;
-            return payload.exp * 1000 < Date.now();
+            return (payload.exp * 1000) - bufferMs < Date.now();
         } catch {
             return true;
         }
@@ -423,10 +438,13 @@ http
         if (ctx.skipAuth) return;
 
         if (AuthService.isTokenExpired()) {
-            const refreshed = await AuthService.refreshAccessToken();
-            if (!refreshed) {
-                AuthService.logout();
-                throw new SessionExpiredError();
+            const res = await AuthService.refreshAccessToken();
+            if (!res.success) {
+                if (res.isInvalidToken) {
+                    AuthService.logout();
+                    throw new SessionExpiredError();
+                }
+                throw res.error || new Error('Network error during token refresh');
             }
         }
 
@@ -441,10 +459,13 @@ http
     .useResponse(async (ctx) => {
         if (ctx.skipAuth || ctx.isRetry || ctx.response.status !== 401) return;
 
-        const refreshed = await AuthService.refreshAccessToken();
-        if (!refreshed) {
-            AuthService.logout();
-            throw new SessionExpiredError();
+        const res = await AuthService.refreshAccessToken();
+        if (!res.success) {
+            if (res.isInvalidToken) {
+                AuthService.logout();
+                throw new SessionExpiredError();
+            }
+            throw res.error || new Error('Network error during token refresh');
         }
 
         ctx.config.headers = {
