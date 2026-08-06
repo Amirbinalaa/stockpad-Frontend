@@ -3154,6 +3154,12 @@ html.splash-active body::-webkit-scrollbar {
     width: 0 !important;
 }
 
+html.splash-active .top-header-controls {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 .auth-success {
     background: rgba(45,134,89,0.08);
     border: 1px solid rgba(45,134,89,0.3);

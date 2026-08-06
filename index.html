@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="splash-active">
 
 <head>
   <meta charset="UTF-8" />
@@ -562,6 +562,14 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+
+    html.splash-active .top-header-controls {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
     }
 
     .top-control-btn {
@@ -2201,6 +2209,7 @@
     document.documentElement.style.overflow = 'hidden';
     document.documentElement.style.scrollbarWidth = 'none';
     setTimeout(() => {
+      document.documentElement.classList.remove('splash-active');
       document.documentElement.style.overflow = '';
       document.documentElement.style.scrollbarWidth = '';
       document.getElementById('splash').style.display = 'none';
