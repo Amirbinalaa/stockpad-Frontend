@@ -517,7 +517,22 @@ class ApiService {
     }
 
     static async quickCreateMaterial(materialData) {
+        const isFormData = materialData instanceof FormData;
+        if (isFormData) {
+            try {
+                return await this.request('/inventory/materials/quick-create/', {
+                    method: 'POST',
+                    body: materialData,
+                });
+            } catch (err) {
+                return await this.request('/inventory/materials/', {
+                    method: 'POST',
+                    body: materialData,
+                });
+            }
+        }
         const payload = {
+            ...materialData,
             name: materialData.name,
             unit: materialData.unit || materialData.unit_of_measure || 'kg',
             unit_of_measure: materialData.unit_of_measure || materialData.unit || 'kg',
