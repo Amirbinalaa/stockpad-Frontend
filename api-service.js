@@ -728,7 +728,8 @@ class DataManager {
 
     async loadMaterials() {
         const data = await ApiService.getMaterials();
-        this.materials = data.map((item) => this._toFrontendMaterial(item));
+        const items = Array.isArray(data) ? data : (data.results || []);
+        this.materials = items.map((item) => this._toFrontendMaterial(item));
         return this.materials;
     }
 
@@ -792,7 +793,8 @@ class DataManager {
 
     async loadTransactions() {
         const data = await ApiService.getTransactions();
-        this.transactions = data.map((item) => this._toFrontendTransaction(item));
+        const items = Array.isArray(data) ? data : (data.results || []);
+        this.transactions = items.map((item) => this._toFrontendTransaction(item));
         return this.transactions;
     }
 
