@@ -634,6 +634,10 @@ class ApiService {
         return this.request(`/inventory/requests/list/${query}`);
     }
 
+    static getMaterialRequestSummary() {
+        return this.request('/inventory/material-requests/summary/');
+    }
+
     static reviewMaterialRequest(id, status, reviewNotes = '') {
         return this.request(`/inventory/requests/${id}/review/`, {
             method: 'PATCH',
@@ -883,16 +887,13 @@ class DataManager {
             return this._countsCache.counts; // serve from cache
         }
 
-        const [pending, approved, denied] = await Promise.all([
-            ApiService.getMaterialRequests('pending'),
-            ApiService.getMaterialRequests('approved'),
-            ApiService.getMaterialRequests('denied'),
-        ]);
-        const extract = (d) => Array.isArray(d) ? d.length : (d.count || 0);
-        const p = extract(pending);
-        const a = extract(approved);
-        const d = extract(denied);
-        const counts = { pending: p, approved: a, denied: d, total: p + a + d };
+        const data = await ApiService.getMaterialRequestSummary();
+        const counts = {
+            pending: data.pending || 0,
+            approved: data.approved || 0,
+            denied: data.denied || 0,
+            total: data.total || 0,
+        };
 
         this._countsCache = { counts, expiresAt: now + this._COUNTS_TTL_MS };
         return counts;

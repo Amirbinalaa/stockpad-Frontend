@@ -1,8 +1,8 @@
 // ==================== DOM ELEMENTS ====================
 const appWrapper = document.getElementById('appWrapper');
-const logoutBtn  = document.getElementById('logoutBtn');
-const navItems   = document.querySelectorAll('.nav-item[data-page]');
-const pages      = document.querySelectorAll('.page');
+const logoutBtn = document.getElementById('logoutBtn');
+const navItems = document.querySelectorAll('.nav-item[data-page]');
+const pages = document.querySelectorAll('.page');
 
 // ==================== GLOBAL STATE ====================
 let appLoaded = false;
@@ -11,7 +11,7 @@ let isPendingFetching = false;
 let pendingPollInterval = null;
 let dashboardMaterialCategoryFilter = 'all';
 
-function getMaterials()    { return dataManager.getMaterials(); }
+function getMaterials() { return dataManager.getMaterials(); }
 function getTransactions() { return dataManager.getTransactions(); }
 
 // ==================== SHOW / HIDE SCREENS ====================
@@ -37,7 +37,7 @@ function showAuthPage() {
 // ==================== LOAD APP ====================
 async function loadApp() {
     if (appLoaded) return;
-        appLoaded = true;
+    appLoaded = true;
     if (!notificationSystem) {
         notificationSystem = new NotificationSystem();
     }
@@ -68,7 +68,7 @@ async function loadApp() {
     });
     document.getElementById('cancelReviewBtn')?.addEventListener('click', closeReviewModal);
     document.getElementById('confirmReviewBtn')?.addEventListener('click', handleReviewAction);
-    
+
     // Close modal on overlay click
     document.getElementById('reviewRequestModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'reviewRequestModal') closeReviewModal();
@@ -117,13 +117,13 @@ async function loadApp() {
 
 
     const user = dataManager.getCurrentUser();
-    
-    
-        
-    
-    
-    
-    
+
+
+
+
+
+
+
 
     showNotification('Welcome', user ? `Welcome back, ${user.username}!` : 'StockPad is ready!', 'success');
     fetchAndRenderAIInsights();
@@ -149,8 +149,8 @@ async function checkNotifications() {
             .replace(/[^a-z0-9]/g, '-');
 
         // ── LOW STOCK ALERT ──────────────────────────────────────────────
-        const maxQty    = material.maxQty || 100;
-        const percent   = Math.min((material.qty / maxQty) * 100, 100);
+        const maxQty = material.maxQty || 100;
+        const percent = Math.min((material.qty / maxQty) * 100, 100);
         const threshold = (material.lowStockThreshold != null && material.lowStockThreshold > 0)
             ? material.lowStockThreshold
             : 30;
@@ -162,14 +162,14 @@ async function checkNotifications() {
                     `${material.name} is at ${percent.toFixed(1)}% — below the ${threshold}% threshold.`,
                     'alert',
                     `low-stock-${materialSlug}`
-                ).catch(() => {}) // silent — don't block UI on notif failure
+                ).catch(() => { }) // silent — don't block UI on notif failure
             );
         }
 
         // ── INACTIVITY REMINDER ───────────────────────────────────────────
         if (material.lastUpdated) {
             const lastUpdated = new Date(material.lastUpdated);
-            const daysSince   = Math.floor((now - lastUpdated) / 86400000);
+            const daysSince = Math.floor((now - lastUpdated) / 86400000);
             if (daysSince >= 30) {
                 jobs.push(
                     ApiService.createNotification(
@@ -177,7 +177,7 @@ async function checkNotifications() {
                         `${material.name} hasn't been updated in ${daysSince} days.`,
                         'reminder',
                         `inactivity-${materialSlug}`
-                    ).catch(() => {})
+                    ).catch(() => { })
                 );
             }
         }
@@ -304,14 +304,24 @@ function applyMaterialDashboardFilters() {
     const term = (materialSearchInput?.value || '').toLowerCase().trim();
     if (clearSearchBtn) clearSearchBtn.style.display = term ? 'flex' : 'none';
 
-    let count = 0;
-    document.querySelectorAll('.material-bar-item').forEach((bar) => {
-        const name = bar.querySelector('.material-name')?.textContent.toLowerCase() || '';
-        const category = bar.dataset.resolvedCategory || '';
+    // Build a set of visible material IDs from the in-memory array instead of
+    // reading text from the live DOM on every call.
+    const allMaterials = getMaterials();
+    const visibleIds = new Set();
+    allMaterials.forEach((m) => {
+        const name = (m.name || '').toLowerCase();
+        const category = MaterialCategories
+            ? MaterialCategories.resolveMaterialCategory(m)
+            : (m.resolved_category || 'Others');
         const matchesSearch = !term || name.includes(term);
         const matchesCategory = dashboardMaterialCategoryFilter === 'all'
             || category === dashboardMaterialCategoryFilter;
-        const visible = matchesSearch && matchesCategory;
+        if (matchesSearch && matchesCategory) visibleIds.add(String(m.id));
+    });
+
+    let count = 0;
+    document.querySelectorAll('.material-bar-item').forEach((bar) => {
+        const visible = visibleIds.has(bar.dataset.materialId);
         bar.style.display = visible ? 'block' : 'none';
         if (visible) count += 1;
     });
@@ -335,13 +345,15 @@ function applyMaterialDashboardFilters() {
 
 // ==================== SEARCH ====================
 const materialSearchInput = document.getElementById('materialSearch');
-const clearSearchBtn       = document.getElementById('clearSearch');
-const searchResultsInfo    = document.getElementById('searchResultsInfo');
-const searchResultsCount   = document.getElementById('searchResultsCount');
+const clearSearchBtn = document.getElementById('clearSearch');
+const searchResultsInfo = document.getElementById('searchResultsInfo');
+const searchResultsCount = document.getElementById('searchResultsCount');
 
+let _materialSearchTimer = null;
 if (materialSearchInput && clearSearchBtn) {
     materialSearchInput.addEventListener('input', () => {
-        applyMaterialDashboardFilters();
+        clearTimeout(_materialSearchTimer);
+        _materialSearchTimer = setTimeout(applyMaterialDashboardFilters, 150);
     });
 
     clearSearchBtn.addEventListener('click', () => {
@@ -392,13 +404,28 @@ function renderDashboard() {
 
     setupEditMaterialModalListenersOnce();
 
-    const materials = getMaterials();
-    container.innerHTML = '';
+    const activeEl = document.activeElement;
+    let focusInfo = null;
+    if (activeEl && container.contains(activeEl)) {
+        const matId = activeEl.dataset?.materialId || activeEl.closest('[data-material-id]')?.dataset?.materialId;
+        const tag = activeEl.tagName.toLowerCase();
+        const classes = activeEl.className ? '.' + Array.from(activeEl.classList).filter(Boolean).join('.') : '';
+        const selector = matId ? `${tag}${classes}[data-material-id="${matId}"]` : null;
+        focusInfo = {
+            selector,
+            matId,
+            selectionStart: typeof activeEl.selectionStart === 'number' ? activeEl.selectionStart : null,
+            selectionEnd: typeof activeEl.selectionEnd === 'number' ? activeEl.selectionEnd : null
+        };
+    }
 
+    const materials = getMaterials();
     if (materials.length === 0) {
         container.innerHTML = '<p style="text-align:center;padding:2rem;opacity:0.6;">No materials yet. Add some in Activity tab.</p>';
         return;
     }
+
+    const fragment = document.createDocumentFragment();
 
     materials.forEach(material => {
         const resolvedCategory = MaterialCategories
@@ -409,12 +436,12 @@ function renderDashboard() {
         const threshold = (material.lowStockThreshold != null && material.lowStockThreshold > 0)
             ? material.lowStockThreshold
             : 30;
-        
+
         // strict 3-tier health state logic
         let healthState = 'optimal';
         let status = 'Optimal Stock';
         let color = 'var(--success-green)';
-        
+
         if (percent <= threshold) {
             healthState = 'critical';
             status = 'Critical Stock';
@@ -434,6 +461,7 @@ function renderDashboard() {
         const bar = document.createElement('div');
         bar.className = hasImage ? 'material-bar-item material-bar-item--has-image' : 'material-bar-item';
         bar.dataset.resolvedCategory = resolvedCategory;
+        bar.dataset.materialId = String(material.id);
         bar.innerHTML = `
             <div class="material-bar-header">
                 <div class="material-info-left">
@@ -469,8 +497,29 @@ function renderDashboard() {
             });
         }
 
-        container.appendChild(bar);
+        fragment.appendChild(bar);
     });
+
+    container.innerHTML = '';
+    container.appendChild(fragment);
+
+    if (focusInfo) {
+        let restoredTarget = null;
+        if (focusInfo.selector) {
+            restoredTarget = container.querySelector(focusInfo.selector);
+        }
+        if (!restoredTarget && focusInfo.matId) {
+            restoredTarget = container.querySelector(`[data-material-id="${focusInfo.matId}"]`);
+        }
+        if (restoredTarget && typeof restoredTarget.focus === 'function') {
+            restoredTarget.focus();
+            if (focusInfo.selectionStart !== null && focusInfo.selectionEnd !== null && typeof restoredTarget.setSelectionRange === 'function') {
+                try {
+                    restoredTarget.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+                } catch (e) { }
+            }
+        }
+    }
 
     applyMaterialDashboardFilters();
 }
@@ -480,7 +529,7 @@ function populateMaterialSelects() {
     const materials = getMaterials();
 
     const transactionSelect = document.getElementById('transactionMaterial');
-    const reportSelect      = document.getElementById('reportMaterial');
+    const reportSelect = document.getElementById('reportMaterial');
 
     if (transactionSelect) {
         transactionSelect.innerHTML = '<option value="">-- Choose material --</option>';
@@ -498,8 +547,8 @@ function populateMaterialSelects() {
 }
 
 // ==================== TRANSACTION TYPE SELECTOR ====================
-const selectInBtn    = document.getElementById('selectInBtn');
-const selectOutBtn   = document.getElementById('selectOutBtn');
+const selectInBtn = document.getElementById('selectInBtn');
+const selectOutBtn = document.getElementById('selectOutBtn');
 const transactionType = document.getElementById('transactionType');
 
 if (selectInBtn && selectOutBtn) {
@@ -563,10 +612,10 @@ const addMaterialForm = document.getElementById('addMaterialForm');
 if (addMaterialForm) {
     addMaterialForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const name              = document.getElementById('materialName').value.trim();
-        const qty               = parseFloat(document.getElementById('initialQty').value);
+        const name = document.getElementById('materialName').value.trim();
+        const qty = parseFloat(document.getElementById('initialQty').value);
         const maxQty = parseFloat(document.getElementById('maxQty').value);
-        const unit              = document.getElementById('materialUnit').value;
+        const unit = document.getElementById('materialUnit').value;
         const lowStockThreshold = parseFloat(document.getElementById('lowStockThreshold').value) || null;
         const costPrice = parseFloat(document.getElementById('materialCostPrice')?.value) || 0;
         const currency = document.getElementById('materialCurrency')?.value || 'EGP';
@@ -607,10 +656,10 @@ const transactionForm = document.getElementById('transactionForm');
 if (transactionForm) {
     transactionForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const type       = document.getElementById('transactionType').value;
+        const type = document.getElementById('transactionType').value;
         const materialId = parseInt(document.getElementById('transactionMaterial').value);
-        const qty        = parseFloat(document.getElementById('transactionQty').value);
-        const notes      = document.getElementById('transactionNotes').value || (type === 'in' ? 'Stock IN' : 'Stock OUT');
+        const qty = parseFloat(document.getElementById('transactionQty').value);
+        const notes = document.getElementById('transactionNotes').value || (type === 'in' ? 'Stock IN' : 'Stock OUT');
 
         const material = getMaterials().find(m => m.id === materialId);
         if (!material) { showNotification('Error', 'Please select a material', 'error'); return; }
@@ -662,13 +711,13 @@ if (reportPeriod) {
 const generateReportBtn = document.getElementById('generateReportBtn');
 if (generateReportBtn) {
     generateReportBtn.addEventListener('click', () => {
-        const transactions   = getTransactions();
-        const materials      = getMaterials();
+        const transactions = getTransactions();
+        const materials = getMaterials();
         const materialFilter = document.getElementById('reportMaterial').value;
-        const typeFilter     = document.getElementById('reportType').value;
-        const periodFilter   = document.getElementById('reportPeriod').value;
-        const specificDate   = document.getElementById('specificDate')?.value;
-        const today          = new Date();
+        const typeFilter = document.getElementById('reportType').value;
+        const periodFilter = document.getElementById('reportPeriod').value;
+        const specificDate = document.getElementById('specificDate')?.value;
+        const today = new Date();
 
         const reportContainer = document.getElementById('reportContainer');
         if (reportContainer) reportContainer.style.display = 'block';
@@ -679,9 +728,9 @@ if (generateReportBtn) {
             if (materialFilter !== 'all' && t.materialId !== parseInt(materialFilter)) return false;
             if (typeFilter !== 'both' && t.type !== typeFilter) return false;
             const d = new Date(t.date);
-            if (periodFilter === 'today')    return d.toDateString() === today.toDateString();
-            if (periodFilter === 'week')     return d >= new Date(today - 7 * 86400000);
-            if (periodFilter === 'month')    return d >= new Date(today - 30 * 86400000);
+            if (periodFilter === 'today') return d.toDateString() === today.toDateString();
+            if (periodFilter === 'week') return d >= new Date(today - 7 * 86400000);
+            if (periodFilter === 'month') return d >= new Date(today - 30 * 86400000);
             if (periodFilter === 'specific') return specificDate && d.toDateString() === new Date(specificDate).toDateString();
             return true;
         });
@@ -732,29 +781,29 @@ if (generateReportBtn) {
             reportTable.innerHTML = `
                 <table><thead><tr><th>Date</th><th>Material</th><th>Type</th><th>Quantity</th><th>Notes</th></tr></thead>
                 <tbody>${filtered.map(t => {
-                    const m = materials.find(m => m.id === t.materialId);
-                    const c = t.type === 'in' ? 'var(--success-green)' : 'var(--error-red)';
-                    return `<tr>
+                const m = materials.find(m => m.id === t.materialId);
+                const c = t.type === 'in' ? 'var(--success-green)' : 'var(--error-red)';
+                return `<tr>
                         <td>${formatDate(t.date)}</td>
                         <td>${m?.name || 'Unknown'}</td>
                         <td><span style="color:${c};font-weight:600;">${t.type === 'in' ? '📥' : '📤'} ${t.type.toUpperCase()}</span></td>
                         <td>${t.qty} ${m?.unit || ''}</td>
                         <td>${t.notes || ''}</td>
                     </tr>`;
-                }).join('')}</tbody></table>`;
+            }).join('')}</tbody></table>`;
         }
     });
 }
 
 // ==================== REPORT EXPORT ====================
 function getReportFilteredTransactions() {
-    const transactions   = getTransactions();
-    const materials      = getMaterials();
+    const transactions = getTransactions();
+    const materials = getMaterials();
     const materialFilter = document.getElementById('reportMaterial')?.value;
-    const typeFilter     = document.getElementById('reportType')?.value;
-    const periodFilter   = document.getElementById('reportPeriod')?.value;
-    const specificDate   = document.getElementById('specificDate')?.value;
-    const today          = new Date();
+    const typeFilter = document.getElementById('reportType')?.value;
+    const periodFilter = document.getElementById('reportPeriod')?.value;
+    const specificDate = document.getElementById('specificDate')?.value;
+    const today = new Date();
 
     return transactions
         .filter(t => {
@@ -765,9 +814,9 @@ function getReportFilteredTransactions() {
             const d = new Date(t.date);
             if (isNaN(d.getTime())) return false;
 
-            if (periodFilter === 'today')    return d.toDateString() === today.toDateString();
-            if (periodFilter === 'week')     return d >= new Date(today - 7 * 86400000);
-            if (periodFilter === 'month')    return d >= new Date(today - 30 * 86400000);
+            if (periodFilter === 'today') return d.toDateString() === today.toDateString();
+            if (periodFilter === 'week') return d >= new Date(today - 7 * 86400000);
+            if (periodFilter === 'month') return d >= new Date(today - 30 * 86400000);
             if (periodFilter === 'specific') return specificDate && d.toDateString() === new Date(specificDate).toDateString();
             return true;
         })
@@ -791,7 +840,7 @@ if (exportCsvBtn) {
         const rows = getReportFilteredTransactions();
         if (!rows.length) { showNotification('No Data', 'Generate a report first.', 'error'); return; }
         const headers = Object.keys(rows[0]);
-                const csvContent = "\ufeff" + [
+        const csvContent = "\ufeff" + [
             headers.join(','),
             ...rows.map(r => headers.map(h => {
                 const val = (r[h] === null || r[h] === undefined) ? '' : r[h];
@@ -799,20 +848,20 @@ if (exportCsvBtn) {
             }).join(','))
         ].join('\n');
 
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 
-        const url  = URL.createObjectURL(blob);
-                const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         const filename = `stockpad_report_${new Date().toISOString().split('T')[0]}.csv`;
         a.href = url;
         a.download = filename;
         document.body.appendChild(a);
 
-                a.click();
+        a.click();
         document.body.removeChild(a);
 
         URL.revokeObjectURL(url);
-                showNotification('Exported', `Report downloaded as ${filename}`, 'success');
+        showNotification('Exported', `Report downloaded as ${filename}`, 'success');
 
     });
 }
@@ -826,10 +875,10 @@ if (exportXlsxBtn) {
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Report');
-                const filename = `stockpad_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+        const filename = `stockpad_report_${new Date().toISOString().split('T')[0]}.xlsx`;
         XLSX.writeFile(wb, filename);
 
-                showNotification('Exported', `Report downloaded as ${filename}`, 'success');
+        showNotification('Exported', `Report downloaded as ${filename}`, 'success');
 
     });
 }
@@ -838,22 +887,22 @@ if (exportXlsxBtn) {
 class NotificationSystem {
     constructor() {
         this.notifications = []; // Client-side cache of all notifications
-        this.currentTab    = 'all';
-        this._loading      = false;
+        this.currentTab = 'all';
+        this._loading = false;
         this._docClickListener = null;
         this.init();
     }
 
     // ── DOM wiring ─────────────────────────────────────────────────────────
     init() {
-        this.center      = document.getElementById('notificationCenter');
-        this.bellBtn     = document.getElementById('globalNotificationBtn');
-        this.list        = document.getElementById('notificationList');
-        this.empty       = document.getElementById('notificationEmpty');
-        this.markAllBtn  = document.getElementById('markAllNotificationsRead');
-        this.tabBtns     = document.querySelectorAll('.tab-btn');
-        this.indicator   = document.getElementById('globalNotificationIndicator');
-        this.badge       = this.indicator?.querySelector('.notification-badge');
+        this.center = document.getElementById('notificationCenter');
+        this.bellBtn = document.getElementById('globalNotificationBtn');
+        this.list = document.getElementById('notificationList');
+        this.empty = document.getElementById('notificationEmpty');
+        this.markAllBtn = document.getElementById('markAllNotificationsRead');
+        this.tabBtns = document.querySelectorAll('.tab-btn');
+        this.indicator = document.getElementById('globalNotificationIndicator');
+        this.badge = this.indicator?.querySelector('.notification-badge');
 
         this.bellBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -934,13 +983,13 @@ class NotificationSystem {
     /** Normalise an API notification object into a flat client-side shape */
     _mapFromApi(item) {
         return {
-            id:        String(item.id),          // UUID — keep as string
-            title:     item.title,
-            message:   item.message,
-            category:  item.category,            // 'alert' | 'reminder' | 'request'
-            read:      item.is_read,
-            groupKey:  item.group_key || null,
-            count:     item.count || 1,
+            id: String(item.id),          // UUID — keep as string
+            title: item.title,
+            message: item.message,
+            category: item.category,            // 'alert' | 'reminder' | 'request'
+            read: item.is_read,
+            groupKey: item.group_key || null,
+            count: item.count || 1,
             timestamp: new Date(item.updated_at || item.created_at),
         };
     }
@@ -950,7 +999,7 @@ class NotificationSystem {
         if (this._loading) return;
         this._loading = true;
         try {
-            const data  = await ApiService.getNotifications();
+            const data = await ApiService.getNotifications();
             const items = Array.isArray(data) ? data : (data.results || []);
             this.notifications = items.map(n => this._mapFromApi(n));
             await this.updateBadge();
@@ -1013,7 +1062,7 @@ class NotificationSystem {
         }
 
         this.indicator.style.display = count > 0 ? 'block' : 'none';
-        this.badge.textContent       = count > 99 ? '99+' : String(count);
+        this.badge.textContent = count > 99 ? '99+' : String(count);
     }
 
     // ── Mark all as read (single bulk request) ──────────────────────────────
@@ -1088,11 +1137,11 @@ class NotificationSystem {
         const modal = document.getElementById('notificationDetailModal');
         if (!modal) return;
 
-        const titleEl    = document.getElementById('notifDetailModalTitle');
-        const badgeEl    = document.getElementById('notifDetailModalCategoryBadge');
-        const timeEl     = document.getElementById('notifDetailModalTime');
-        const messageEl  = document.getElementById('notifDetailModalMessage');
-        const actionBtn  = document.getElementById('notifDetailModalActionBtn');
+        const titleEl = document.getElementById('notifDetailModalTitle');
+        const badgeEl = document.getElementById('notifDetailModalCategoryBadge');
+        const timeEl = document.getElementById('notifDetailModalTime');
+        const messageEl = document.getElementById('notifDetailModalMessage');
+        const actionBtn = document.getElementById('notifDetailModalActionBtn');
 
         if (titleEl) titleEl.textContent = notification.title;
         if (messageEl) messageEl.textContent = notification.message;
@@ -1105,16 +1154,16 @@ class NotificationSystem {
             badgeEl.className = 'badge';
             if (notification.category === 'alert') {
                 badgeEl.style.background = 'var(--error-red-light)';
-                badgeEl.style.color      = 'var(--error-red)';
+                badgeEl.style.color = 'var(--error-red)';
             } else if (notification.category === 'reminder') {
                 badgeEl.style.background = 'rgba(230, 168, 69, 0.15)';
-                badgeEl.style.color      = 'var(--warning-yellow)';
+                badgeEl.style.color = 'var(--warning-yellow)';
             } else if (notification.category === 'request') {
                 badgeEl.style.background = 'var(--success-green-light)';
-                badgeEl.style.color      = 'var(--success-green)';
+                badgeEl.style.color = 'var(--success-green)';
             } else {
                 badgeEl.style.background = 'var(--beige-light)';
-                badgeEl.style.color      = 'var(--burnt-orange)';
+                badgeEl.style.color = 'var(--burnt-orange)';
             }
         }
 
@@ -1172,7 +1221,7 @@ class NotificationSystem {
 
         const toastType = (type === 'alert' || type === 'error') ? 'error'
             : (type === 'success' || type === 'request' || type === 'requests') ? 'success'
-            : 'info';
+                : 'info';
         showNotification(title, message, toastType, 4000);
 
         if (category) {
@@ -1183,7 +1232,7 @@ class NotificationSystem {
                 .slice(0, 80);
             ApiService.createNotification(title, message, category, slug)
                 .then(() => this.updateBadge())
-                .catch(() => {});
+                .catch(() => { });
         }
     }
 
@@ -1195,24 +1244,24 @@ class NotificationSystem {
             : this.notifications.filter(n => n.category === this.currentTab);
 
         if (filtered.length === 0) {
-            this.list.style.display  = 'none';
+            this.list.style.display = 'none';
             this.empty.style.display = 'block';
             return;
         }
 
-        this.list.style.display  = 'block';
+        this.list.style.display = 'block';
         this.empty.style.display = 'none';
 
         const ICONS = {
-            alert:    'fas fa-exclamation-triangle',
+            alert: 'fas fa-exclamation-triangle',
             reminder: 'fas fa-clock',
-            request:  'fas fa-box-open',
+            request: 'fas fa-box-open',
         };
 
         this.list.innerHTML = filtered.map(n => {
-            const icon       = ICONS[n.category] || 'fas fa-bell';
-            const unreadCls  = !n.read ? 'unread' : '';
-            const countPill  = n.count > 1
+            const icon = ICONS[n.category] || 'fas fa-bell';
+            const unreadCls = !n.read ? 'unread' : '';
+            const countPill = n.count > 1
                 ? `<span class="notif-count-pill">+${n.count - 1} more</span>`
                 : '';
             return `
@@ -1241,13 +1290,13 @@ class NotificationSystem {
     // ── Relative timestamp ──────────────────────────────────────────────────
     _timeAgo(ts) {
         const diff = Date.now() - new Date(ts);
-        const m    = Math.floor(diff / 60000);
-        const h    = Math.floor(diff / 3600000);
-        const d    = Math.floor(diff / 86400000);
-        if (m < 1)  return 'Just now';
+        const m = Math.floor(diff / 60000);
+        const h = Math.floor(diff / 3600000);
+        const d = Math.floor(diff / 86400000);
+        if (m < 1) return 'Just now';
         if (m < 60) return `${m}m ago`;
         if (h < 24) return `${h}h ago`;
-        if (d < 7)  return `${d}d ago`;
+        if (d < 7) return `${d}d ago`;
         return new Date(ts).toLocaleDateString();
     }
 }
@@ -1259,10 +1308,10 @@ if (darkModeToggle) {
         const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
         localStorage.setItem('sp_theme', next);
-        const sun  = document.getElementById('g-icon-sun');
+        const sun = document.getElementById('g-icon-sun');
         const moon = document.getElementById('g-icon-moon');
-        if (sun)  sun.style.display  = next === 'dark' ? 'block' : 'none';
-        if (moon) moon.style.display = next === 'dark' ? 'none'  : 'block';
+        if (sun) sun.style.display = next === 'dark' ? 'block' : 'none';
+        if (moon) moon.style.display = next === 'dark' ? 'none' : 'block';
     });
 }
 
@@ -1291,7 +1340,7 @@ async function loadPreferences() {
     try {
         const prefs = await ApiService.getPreferences();
         if (!prefs) return;
-        
+
         const defaultUnitSelect = document.getElementById('defaultUnit');
         if (defaultUnitSelect && prefs.default_unit) {
             defaultUnitSelect.value = prefs.default_unit;
@@ -1304,7 +1353,7 @@ async function loadPreferences() {
 
         const deadStockDays = prefs.dead_stock_threshold_days;
         const converted = convertDaysToUnitAndValue(deadStockDays);
-        
+
         const deadStockValueInput = document.getElementById('deadStockValue');
         const deadStockUnitSelect = document.getElementById('deadStockUnit');
         if (deadStockValueInput) {
@@ -1462,7 +1511,7 @@ async function loadConnectedEngineers() {
     }
 }
 
-window.revokeEngineerAccess = async function(id) {
+window.revokeEngineerAccess = async function (id) {
     if (!confirm('Are you sure you want to revoke access for this engineer?')) return;
     try {
         await ApiService.deleteConnectedEngineer(id);
@@ -1539,19 +1588,19 @@ async function loadProfileForm() {
     const user = dataManager.getCurrentUser();
     if (!user) return;
     document.getElementById('editFirstName').value = user.firstName || '';
-    document.getElementById('editLastName').value  = user.lastName  || '';
-    document.getElementById('editUsername').value  = user.username  || '';
+    document.getElementById('editLastName').value = user.lastName || '';
+    document.getElementById('editUsername').value = user.username || '';
     const emailInput = document.getElementById('editEmail');
     if (emailInput) {
         emailInput.value = user.email || '';
     }
     loadPreferences();
-    ['editFirstName','editLastName','editUsername'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', () => {
-        document.getElementById('saveProfileBtn').style.display = 'inline-flex';
-        document.getElementById('changePasswordBtn').style.display = 'inline-flex';
+    ['editFirstName', 'editLastName', 'editUsername'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => {
+            document.getElementById('saveProfileBtn').style.display = 'inline-flex';
+            document.getElementById('changePasswordBtn').style.display = 'inline-flex';
+        });
     });
-});
 
     try {
         const profile = await AuthService.fetchProfile();
@@ -1580,7 +1629,7 @@ async function loadProfileForm() {
             img.src = freshPreview.src;
             img.style.cssText = 'width:450px;height:450px;object-fit:cover;display:block;border-radius: 8%;';
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'width:400px;height:400px;min-width:400px;min-height:400px;border-radius:50%;overflow:hidden;border:4px solid var(--burnt-orange);box-shadow:0 20px 60px rgba(0,0,0,0.5);';       
+            wrapper.style.cssText = 'width:400px;height:400px;min-width:400px;min-height:400px;border-radius:50%;overflow:hidden;border:4px solid var(--burnt-orange);box-shadow:0 20px 60px rgba(0,0,0,0.5);';
             overlay.appendChild(img);
             overlay.addEventListener('click', () => overlay.remove());
             document.body.appendChild(overlay);
@@ -1620,8 +1669,8 @@ const saveProfileBtn = document.getElementById('saveProfileBtn');
 if (saveProfileBtn) {
     saveProfileBtn.addEventListener('click', async () => {
         const firstName = document.getElementById('editFirstName').value.trim();
-        const lastName  = document.getElementById('editLastName').value.trim();
-        const username  = document.getElementById('editUsername').value.trim();
+        const lastName = document.getElementById('editLastName').value.trim();
+        const username = document.getElementById('editUsername').value.trim();
         const msg = document.getElementById('profileSaveMsg');
 
         try {
@@ -1641,15 +1690,15 @@ if (saveProfileBtn) {
             };
             AuthService.setCurrentUser(newUser, AuthService.isRememberMe());
 
-            
-            
-            
-                
-                    
-                    
-                    
-                
-            
+
+
+
+
+
+
+
+
+
 
             msg.textContent = '✅ Profile updated successfully!';
             msg.style.color = 'var(--success-green)';
@@ -1673,56 +1722,56 @@ const changePasswordModal = document.getElementById('changePasswordModal');
 const closePasswordModal = document.getElementById('closePasswordModal');
 const submitPasswordBtn = document.getElementById('submitPasswordBtn');
 
-    if (changePasswordBtn) {
-        changePasswordBtn.addEventListener('click', () => {
-            changePasswordModal.style.display = 'flex';
-        });
-    }
+if (changePasswordBtn) {
+    changePasswordBtn.addEventListener('click', () => {
+        changePasswordModal.style.display = 'flex';
+    });
+}
 
-    if (closePasswordModal) {
-        closePasswordModal.addEventListener('click', () => {
+if (closePasswordModal) {
+    closePasswordModal.addEventListener('click', () => {
+        changePasswordModal.style.display = 'none';
+        document.getElementById('oldPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmPassword').value = '';
+        document.getElementById('passwordChangeError').style.display = 'none';
+    });
+}
+
+if (submitPasswordBtn) {
+    submitPasswordBtn.addEventListener('click', async () => {
+        const oldPassword = document.getElementById('oldPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const errorEl = document.getElementById('passwordChangeError');
+
+        errorEl.style.display = 'none';
+
+        if (newPassword.length < 8) {
+            errorEl.textContent = 'New password must be at least 8 characters.';
+            errorEl.style.display = 'block';
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            errorEl.textContent = 'Passwords do not match.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            await AuthService.changePassword(oldPassword, newPassword);
             changePasswordModal.style.display = 'none';
-            document.getElementById('oldPassword').value     = '';
-            document.getElementById('newPassword').value     = '';
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
             document.getElementById('confirmPassword').value = '';
-            document.getElementById('passwordChangeError').style.display = 'none';
-        });
-    }
+            showNotification('Success', 'Password changed successfully!', 'success');
 
-    if (submitPasswordBtn) {
-        submitPasswordBtn.addEventListener('click', async () => {
-            const oldPassword     = document.getElementById('oldPassword').value;
-            const newPassword     = document.getElementById('newPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const errorEl         = document.getElementById('passwordChangeError');
-
-            errorEl.style.display = 'none';
-
-            if (newPassword.length < 8) {
-                errorEl.textContent = 'New password must be at least 8 characters.';
-                errorEl.style.display = 'block';
-                return;
-            }
-            if (newPassword !== confirmPassword) {
-                errorEl.textContent = 'Passwords do not match.';
-                errorEl.style.display = 'block';
-                return;
-            }
-
-            try {
-                await AuthService.changePassword(oldPassword, newPassword);
-                changePasswordModal.style.display = 'none';
-                document.getElementById('oldPassword').value     = '';
-                document.getElementById('newPassword').value     = '';
-                document.getElementById('confirmPassword').value = '';
-                showNotification('Success', 'Password changed successfully!', 'success');
-
-            } catch (err) {
-                errorEl.textContent = err.message;
-                errorEl.style.display = 'block';
-            }
-        });
-    }
+        } catch (err) {
+            errorEl.textContent = err.message;
+            errorEl.style.display = 'block';
+        }
+    });
+}
 
 // ==================== PANEL HEADLINE & DOTS SLIDER ====================
 const slides = document.querySelectorAll('.panel-headline-slider .slide-item');
@@ -1830,7 +1879,7 @@ function renderRequestsTable() {
 
     emptyState.style.display = 'none';
     tbody.innerHTML = filtered.map(req => {
-        const actions = req.status === 'pending' 
+        const actions = req.status === 'pending'
             ? `
                 <div class="action-buttons">
                     <button class="req-action-btn approve" onclick="openReviewModal(${req.id}, 'approved')">
@@ -1902,7 +1951,7 @@ function renderRequestsPagination() {
     `;
 }
 
-window.openReviewModal = function(id, action) {
+window.openReviewModal = function (id, action) {
     const req = allRequests.find(r => r.id === id);
     if (!req) return;
 
@@ -1925,7 +1974,7 @@ window.openReviewModal = function(id, action) {
     if (modal) modal.classList.add('active');
 };
 
-window.closeReviewModal = function() {
+window.closeReviewModal = function () {
     const modal = document.getElementById('reviewRequestModal');
     if (modal) modal.classList.remove('active');
 };
@@ -2942,7 +2991,7 @@ async function fetchAndRenderImpliedDemandChart(limit = _impliedDemandLimit, per
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>'"]/g, 
+    return str.replace(/[&<>'"]/g,
         tag => ({
             '&': '&amp;',
             '<': '&lt;',
@@ -3660,7 +3709,7 @@ function addBomRow(selectedMaterial = null, qtyPerUnit = '') {
     const rowEl = document.createElement('div');
     rowEl.className = 'bom-row';
     rowEl.id = rowId;
-    
+
     let initialSearchVal = '';
     let initialUnit = '';
 
@@ -3733,7 +3782,7 @@ function renderBomMaterialDropdown(rowEl, query) {
     if (!dropdown) return;
 
     const materials = getMaterials() || [];
-    const filtered = materials.filter(m => 
+    const filtered = materials.filter(m =>
         !query || m.name.toLowerCase().includes(query.toLowerCase())
     );
 
@@ -3853,19 +3902,19 @@ function closeQuickCreateModal() {
  */
 async function handleQuickCreateMaterialSubmit(e) {
     e.preventDefault();
-    const nameInput    = document.getElementById('quickMaterialName');
-    const unitInput    = document.getElementById('quickMaterialUnit');
-    const threshInput  = document.getElementById('quickMaterialThreshold');
+    const nameInput = document.getElementById('quickMaterialName');
+    const unitInput = document.getElementById('quickMaterialUnit');
+    const threshInput = document.getElementById('quickMaterialThreshold');
     const initQtyInput = document.getElementById('quickMaterialInitQty');
-    const maxQtyInput  = document.getElementById('quickMaterialMaxQty');
-    const photoInput   = document.getElementById('quickMaterialPhoto');
-    const costInput    = document.getElementById('quickMaterialCostPrice');
-    const currInput    = document.getElementById('quickMaterialCurrency');
-    const methodInput  = document.getElementById('quickMaterialCostingMethod');
-    const submitBtn    = document.getElementById('saveQuickMaterialBtn');
+    const maxQtyInput = document.getElementById('quickMaterialMaxQty');
+    const photoInput = document.getElementById('quickMaterialPhoto');
+    const costInput = document.getElementById('quickMaterialCostPrice');
+    const currInput = document.getElementById('quickMaterialCurrency');
+    const methodInput = document.getElementById('quickMaterialCostingMethod');
+    const submitBtn = document.getElementById('saveQuickMaterialBtn');
 
-    const name    = nameInput ? nameInput.value.trim() : '';
-    const unit    = unitInput ? unitInput.value : 'kg';
+    const name = nameInput ? nameInput.value.trim() : '';
+    const unit = unitInput ? unitInput.value : 'kg';
 
     if (!name) {
         showNotification('Input Error', 'Material name is required.', 'error');
@@ -3887,12 +3936,12 @@ async function handleQuickCreateMaterialSubmit(e) {
                     name,
                     unit,
                     unit_of_measure: unit,
-                    initial_quantity:              parseFloat(initQtyInput?.value) || 0,
-                    max_quantity:                  parseFloat(maxQtyInput?.value)  || 100,
-                    low_stock_threshold_percent:   parseInt(threshInput?.value)    || 30,
-                    cost_price:                    parseFloat(costInput?.value)    || 0,
-                    currency:                      currInput?.value               || 'EGP',
-                    costing_method:                methodInput?.value             || 'MOVING_AVG',
+                    initial_quantity: parseFloat(initQtyInput?.value) || 0,
+                    max_quantity: parseFloat(maxQtyInput?.value) || 100,
+                    low_stock_threshold_percent: parseInt(threshInput?.value) || 30,
+                    cost_price: parseFloat(costInput?.value) || 0,
+                    currency: currInput?.value || 'EGP',
+                    costing_method: methodInput?.value || 'MOVING_AVG',
                 };
                 // If photo provided, send as multipart
                 if (photoInput && photoInput.files && photoInput.files[0]) {
@@ -3920,7 +3969,7 @@ async function handleQuickCreateMaterialSubmit(e) {
                 name,
                 unit,
                 current_quantity: parseFloat(initQtyInput?.value) || 0,
-                qty:              parseFloat(initQtyInput?.value) || 0,
+                qty: parseFloat(initQtyInput?.value) || 0,
             };
         }
 
@@ -3943,7 +3992,7 @@ async function handleQuickCreateMaterialSubmit(e) {
 
         // Automatically bind material.id, name, and UOM badge to active BOM row
         if (_activeBomQuickCreateRow) {
-            const finalId   = normalized.id   || createdMat.id;
+            const finalId = normalized.id || createdMat.id;
             const finalName = normalized.name || createdMat.name;
             const finalUnit = normalized.unit || createdMat.unit || unit;
 
