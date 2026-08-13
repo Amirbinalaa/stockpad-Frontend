@@ -155,7 +155,8 @@
 
         return (
             '<!DOCTYPE html><html><head><meta charset="utf-8"/>' +
-            `<style>${PROCUREMENT_REPORT_STYLES}body{background:#18181b;color:#e2e8f0;font-family:Helvetica,Arial,sans-serif;padding:24px;}</style>` +
+            '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">' +
+            `<style>${PROCUREMENT_REPORT_STYLES}body{background:#18181b;color:#e2e8f0;font-family:'DM Sans',sans-serif;padding:24px;}</style>` +
             '</head><body>' +
             '<h1 style="color:#f97316;font-size:18px;margin:0 0 8px;">Procurement &amp; Planning Report</h1>' +
             `<p style="font-size:11px;color:#a1a1aa;margin:0 0 16px;">Critical: ${kpis.critical_count ?? 0} · Reorder: ${kpis.reorder_count ?? 0}</p>` +
