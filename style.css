@@ -1118,7 +1118,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
@@ -3666,9 +3666,10 @@ overflow-y: auto !important;
 }
 
 .stat-value {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 32px;
-    font-weight: 800;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--dark-wood);
 }
 
@@ -3920,9 +3921,10 @@ overflow-y: auto !important;
 }
 
 .modal-title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 24px;
-    font-weight: 800;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     color: var(--dark-wood);
 }
 
@@ -3975,7 +3977,7 @@ overflow-y: auto !important;
     border-radius: 15px !important;
     background: var(--cream-bg);
     color: var(--dark-wood);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 14px;
     resize: vertical;
     min-height: 100px;
@@ -4603,9 +4605,10 @@ overflow-y: auto !important;
 }
 
 .stat-card-value {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 1.6rem;
-    font-weight: 800;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--dark-wood);
 }
 
@@ -4736,7 +4739,7 @@ overflow-y: auto !important;
 
 .ai-deadstock-sku {
     font-weight: 700;
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     white-space: nowrap;
 }
 
@@ -4956,7 +4959,7 @@ overflow-y: auto !important;
 }
 
 .stock-label-code {
-    font-family: monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 0.65rem;
     letter-spacing: 2px;
     color: var(--dark-wood);
@@ -5026,9 +5029,10 @@ overflow-y: auto !important;
 }
 
 .mobile-brand {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-weight: 800;
     font-size: 1.25rem;
+    letter-spacing: -0.02em;
     color: var(--burnt-orange, #F97316);
 }
 
@@ -5126,9 +5130,10 @@ overflow-y: auto !important;
 }
 
 .report-summary-card .card-value {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Geist', sans-serif;
     font-size: 1.5rem;
-    font-weight: 800;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--dark-wood, #E5E5E5);
 }
 
@@ -5641,7 +5646,8 @@ overflow-y: auto !important;
 
 .pp-kpi-value {
     font-size: 1.8rem;
-    font-weight: 800;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--dark-wood);
     line-height: 1.1;
 }

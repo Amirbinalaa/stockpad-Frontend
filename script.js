@@ -3065,7 +3065,7 @@ function renderProductsTable() {
         return `
             <tr>
                 <td>${photoHtml}</td>
-                <td><strong style="font-family: monospace;">${escapeHtml(prod.sku)}</strong></td>
+                <td><strong style="font-family: 'Geist Mono', monospace;">${escapeHtml(prod.sku)}</strong></td>
                 <td><strong>${escapeHtml(prod.name)}</strong></td>
                 <td>${escapeHtml(prod.category || '—')}</td>
                 <td>${escapeHtml(prod.unit_of_measure)}</td>
