@@ -110,18 +110,22 @@
     }
 
     .splash-logo {
-      width: 90px;
-      height: 90px;
+      width: 130px;
+      height: 130px;
       object-fit: contain;
-      filter: brightness(0) invert(1) drop-shadow(0 6px 20px rgba(0, 0, 0, 0.18));
+      filter: brightness(0) invert(1) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.22));
     }
 
-    .splash-name {
+    .splash-name,
+    .splash-inner .app-title {
       font-family: 'Geist', sans-serif;
-      font-size: 32px;
+      font-size: 38px;
       font-weight: 800;
       color: var(--white);
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
+      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      margin: 0;
+      line-height: 1.1;
     }
 
     @keyframes splashIn {
@@ -981,6 +985,7 @@
   <div id="splash">
     <div class="splash-inner">
       <img src="logo.png" alt="StockPad Logo" class="splash-logo" />
+      <h1 class="splash-name app-title">StockPad</h1>
     </div>
   </div>
   <!-- =============================================
