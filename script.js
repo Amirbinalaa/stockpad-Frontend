@@ -897,14 +897,22 @@ class NotificationSystem {
     init() {
         this.center = document.getElementById('notificationCenter');
         this.bellBtn = document.getElementById('globalNotificationBtn');
+        this.mobileBellBtn = document.getElementById('mobileNotificationBtn');
         this.list = document.getElementById('notificationList');
         this.empty = document.getElementById('notificationEmpty');
         this.markAllBtn = document.getElementById('markAllNotificationsRead');
         this.tabBtns = document.querySelectorAll('.tab-btn');
         this.indicator = document.getElementById('globalNotificationIndicator');
         this.badge = this.indicator?.querySelector('.notification-badge');
+        this.mobileIndicator = document.getElementById('mobileNotificationIndicator');
+        this.mobileBadge = this.mobileIndicator?.querySelector('.notification-badge');
 
         this.bellBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggle();
+        });
+
+        this.mobileBellBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggle();
         });
@@ -920,7 +928,8 @@ class NotificationSystem {
                 this.center &&
                 this.isOpen() &&
                 !this.center.contains(e.target) &&
-                !this.bellBtn?.contains(e.target)
+                !this.bellBtn?.contains(e.target) &&
+                !this.mobileBellBtn?.contains(e.target)
             ) {
                 this.hide();
             }
@@ -1063,6 +1072,13 @@ class NotificationSystem {
 
         this.indicator.style.display = count > 0 ? 'block' : 'none';
         this.badge.textContent = count > 99 ? '99+' : String(count);
+
+        if (!this.mobileIndicator) this.mobileIndicator = document.getElementById('mobileNotificationIndicator');
+        if (!this.mobileBadge) this.mobileBadge = this.mobileIndicator?.querySelector('.notification-badge');
+        if (this.mobileIndicator && this.mobileBadge) {
+            this.mobileIndicator.style.display = count > 0 ? 'block' : 'none';
+            this.mobileBadge.textContent = count > 99 ? '99+' : String(count);
+        }
     }
 
     // ── Mark all as read (single bulk request) ──────────────────────────────
@@ -1548,6 +1564,27 @@ function initMobileMenu() {
             overlay.classList.remove('active');
         }
     });
+
+    // Wire mobile theme toggle button to existing global theme toggle
+    const mobileThemeBtn = document.getElementById('mobileThemeBtn');
+    const globalThemeBtn = document.getElementById('global-theme-btn');
+    if (mobileThemeBtn) {
+        const syncMobileThemeIcons = () => {
+            const mSun = mobileThemeBtn.querySelector('.g-icon-sun-mobile');
+            const mMoon = mobileThemeBtn.querySelector('.g-icon-moon-mobile');
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (mSun) mSun.style.display = isDark ? 'block' : 'none';
+            if (mMoon) mMoon.style.display = isDark ? 'none' : 'block';
+        };
+        syncMobileThemeIcons();
+        if (globalThemeBtn && mobileThemeBtn.dataset.listenerAttached !== 'true') {
+            mobileThemeBtn.dataset.listenerAttached = 'true';
+            mobileThemeBtn.addEventListener('click', () => {
+                globalThemeBtn.click();
+                syncMobileThemeIcons();
+            });
+        }
+    }
 }
 
 // Bind event listeners
