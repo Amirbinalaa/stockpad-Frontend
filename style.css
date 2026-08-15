@@ -1287,7 +1287,7 @@ body {
 .panel-headline-slider {
     position: relative;
     height: 180px;
-    margin-bottom: 32px;
+    margin-bottom: 5px;
     overflow: hidden;
 }
 
