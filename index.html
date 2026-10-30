@@ -1345,6 +1345,72 @@
         </div>
         <div id="addMaterialSection" class="add-material-section">
           <div class="card">
+            <!-- SMART QR MODE SELECTOR -->
+            <div class="add-material-mode-bar">
+              <div class="mode-toggle-group" role="group" aria-label="Registration Mode">
+                <button type="button" class="mode-pill active" id="modeScanQRBtn">
+                  <i class="fas fa-qrcode"></i> Scan Supplier QR
+                </button>
+                <button type="button" class="mode-pill" id="modeManualBtn">
+                  <i class="fas fa-edit"></i> Manual Registration
+                </button>
+              </div>
+            </div>
+
+            <!-- SMART QR SCAN / PASTE STAGE -->
+            <div id="qrScanStage" class="qr-scan-stage">
+              <div class="qr-scan-box">
+                <div class="qr-scan-box__header">
+                  <div>
+                    <h4><i class="fas fa-barcode"></i> Fast Material Registration via QR</h4>
+                    <p class="qr-scan-box__subtitle">Scan or paste supplier QR code (GS1 Digital Link or GS1 Element String). Normalized fields will be extracted automatically.</p>
+                  </div>
+                </div>
+                <div class="qr-input-group">
+                  <textarea id="rawQrInput" class="qr-textarea" rows="2" placeholder="Paste raw supplier QR text here (e.g. https://id.gs1.org/01/01234567890128/10/BATCH123?17=271231 or (01)01234567890128(17)271231(10)...)"></textarea>
+                  <button type="button" id="parseQrBtn" class="btn-parse-qr">
+                    <i class="fas fa-search"></i> Parse QR
+                  </button>
+                </div>
+                <div id="qrParseFeedback" class="qr-feedback" hidden></div>
+
+                <!-- REVIEW SCREEN (Shown when parsed) -->
+                <div id="qrReviewCard" class="qr-review-card" hidden>
+                  <div class="qr-review-card__header">
+                    <h5><i class="fas fa-check-circle"></i> Extracted Supplier Data</h5>
+                    <span id="qrDetectedFormatBadge" class="format-badge">GS1 Detected</span>
+                  </div>
+                  <div class="qr-review-grid">
+                    <div class="review-cell">
+                      <span class="review-label">GTIN (AI 01)</span>
+                      <span id="reviewGtin" class="review-value">—</span>
+                      <small class="review-sub">Supplier Trade Identifier (Not SKU)</small>
+                    </div>
+                    <div class="review-cell">
+                      <span class="review-label">Batch / Lot #</span>
+                      <span id="reviewBatch" class="review-value">—</span>
+                    </div>
+                    <div class="review-cell">
+                      <span class="review-label">Expiry Date</span>
+                      <span id="reviewExpiry" class="review-value">—</span>
+                    </div>
+                    <div class="review-cell">
+                      <span class="review-label">Serial Number</span>
+                      <span id="reviewSerial" class="review-value">—</span>
+                    </div>
+                  </div>
+                  <div class="qr-review-actions">
+                    <button type="button" id="applyQrDataBtn" class="btn-apply-qr">
+                      <i class="fas fa-check-double"></i> Review & Fill Missing Fields Below
+                    </button>
+                    <button type="button" id="clearQrDataBtn" class="btn-clear-qr">
+                      <i class="fas fa-undo"></i> Reset / Scan Another
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="add-material-tabs" role="tablist">
               <button type="button" class="add-material-tab active" data-tab-target="inventory"
                 aria-selected="true">Inventory</button>
@@ -2748,6 +2814,42 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- STOCKPAD QR BADGE PRINTABLE MODAL -->
+  <div id="stockpadQrModal" class="stockpad-qr-modal-overlay" hidden>
+    <div class="stockpad-qr-modal-card">
+      <button type="button" id="closeQrModalBtn" class="stockpad-qr-close-btn" aria-label="Close modal">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="stockpad-qr-badge" id="printableStockpadBadge">
+        <div class="badge-brand">
+          <span class="badge-brand-title">STOCKPAD</span>
+          <span class="badge-brand-sub">Smart QR Inventory</span>
+        </div>
+        <div class="badge-qr-container">
+          <img id="stockpadQrImage" src="" alt="StockPad QR" />
+        </div>
+        <div class="badge-info">
+          <div class="badge-qr-id" id="badgeQrId">STOCKPAD:MAT-001</div>
+          <div class="badge-mat-name" id="badgeMatName">Material Name</div>
+          <div class="badge-meta">
+            Initial Stock: <span id="badgeMatQty">0</span> <span id="badgeMatUnit">kg</span>
+          </div>
+        </div>
+        <div class="badge-footer">
+          <span>Single Source of Truth (WM)</span>
+        </div>
+      </div>
+      <div class="stockpad-qr-modal-actions no-print">
+        <button type="button" id="printQrBadgeBtn" class="btn-primary">
+          <i class="fas fa-print"></i> Print QR Label
+        </button>
+        <button type="button" id="doneQrBadgeBtn" class="btn-secondary">
+          Done
+        </button>
+      </div>
     </div>
   </div>
 </body>
