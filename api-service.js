@@ -537,6 +537,17 @@ class ApiService {
         });
     }
 
+    static parseSupplierQR(rawText) {
+        return this.request('/inventory/parse-supplier-qr/', {
+            method: 'POST',
+            body: JSON.stringify({ raw_text: rawText }),
+        });
+    }
+
+    static getMaterialQRBadge(id) {
+        return this.request(`/inventory/materials/${id}/qr-badge/`);
+    }
+
     static async quickCreateMaterial(materialData) {
         const isFormData = materialData instanceof FormData;
         if (isFormData) {
@@ -960,6 +971,9 @@ class DataManager {
             costingMethod: m.costing_method || 'MOVING_AVG',
             imageUrl: resolveMediaUrl(imagePath),
             image_url: resolveMediaUrl(imagePath),
+            qr_id: m.qr_id || null,
+            qrId: m.qr_id || null,
+            qrCodeImage: m.qr_code_image || null,
             lastUpdated: m.updated_at ? m.updated_at.split('T')[0] : null,
         };
     }
