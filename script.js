@@ -607,6 +607,148 @@ if (materialImageInput && materialImagePreview) {
         reader.readAsDataURL(file);
     });
 }
+// ==================== SMART QR INVENTORY (Supplier Scan vs Manual) ====================
+let currentAddMaterialMode = 'scan'; // 'scan' | 'manual'
+let lastExtractedQrData = null;
+
+const modeScanQRBtn = document.getElementById('modeScanQRBtn');
+const modeManualBtn = document.getElementById('modeManualBtn');
+const qrScanStage = document.getElementById('qrScanStage');
+const rawQrInput = document.getElementById('rawQrInput');
+const parseQrBtn = document.getElementById('parseQrBtn');
+const qrParseFeedback = document.getElementById('qrParseFeedback');
+const qrReviewCard = document.getElementById('qrReviewCard');
+const qrDetectedFormatBadge = document.getElementById('qrDetectedFormatBadge');
+const reviewGtin = document.getElementById('reviewGtin');
+const reviewBatch = document.getElementById('reviewBatch');
+const reviewExpiry = document.getElementById('reviewExpiry');
+const reviewSerial = document.getElementById('reviewSerial');
+const applyQrDataBtn = document.getElementById('applyQrDataBtn');
+const clearQrDataBtn = document.getElementById('clearQrDataBtn');
+
+// StockPad Printable QR Modal
+const stockpadQrModal = document.getElementById('stockpadQrModal');
+const closeQrModalBtn = document.getElementById('closeQrModalBtn');
+const doneQrBadgeBtn = document.getElementById('doneQrBadgeBtn');
+const printQrBadgeBtn = document.getElementById('printQrBadgeBtn');
+const stockpadQrImage = document.getElementById('stockpadQrImage');
+const badgeQrId = document.getElementById('badgeQrId');
+const badgeMatName = document.getElementById('badgeMatName');
+const badgeMatQty = document.getElementById('badgeMatQty');
+const badgeMatUnit = document.getElementById('badgeMatUnit');
+
+function setAddMaterialMode(mode) {
+    currentAddMaterialMode = mode;
+    if (mode === 'scan') {
+        modeScanQRBtn?.classList.add('active');
+        modeManualBtn?.classList.remove('active');
+        if (qrScanStage) qrScanStage.style.display = 'block';
+    } else {
+        modeManualBtn?.classList.add('active');
+        modeScanQRBtn?.classList.remove('active');
+        if (qrScanStage) qrScanStage.style.display = 'none';
+    }
+}
+
+if (modeScanQRBtn && modeManualBtn) {
+    modeScanQRBtn.addEventListener('click', () => setAddMaterialMode('scan'));
+    modeManualBtn.addEventListener('click', () => setAddMaterialMode('manual'));
+}
+
+if (parseQrBtn && rawQrInput) {
+    parseQrBtn.addEventListener('click', async () => {
+        const text = rawQrInput.value.trim();
+        if (!text) {
+            if (qrParseFeedback) {
+                qrParseFeedback.textContent = 'Please enter or paste supplier QR code text.';
+                qrParseFeedback.className = 'qr-feedback qr-feedback--error';
+                qrParseFeedback.hidden = false;
+            }
+            return;
+        }
+
+        parseQrBtn.disabled = true;
+        parseQrBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Parsing...';
+        if (qrParseFeedback) qrParseFeedback.hidden = true;
+
+        try {
+            const res = await ApiService.parseSupplierQR(text);
+            if (res?.success && res.data) {
+                lastExtractedQrData = res.data;
+                if (reviewGtin) reviewGtin.textContent = res.data.gtin || 'None';
+                if (reviewBatch) reviewBatch.textContent = res.data.batch_number || 'None';
+                if (reviewExpiry) reviewExpiry.textContent = res.data.expiry_date || 'None';
+                if (reviewSerial) reviewSerial.textContent = res.data.serial || 'None';
+                if (qrDetectedFormatBadge) {
+                    qrDetectedFormatBadge.textContent = res.data.format === 'gs1_digital_link'
+                        ? 'GS1 Digital Link'
+                        : 'GS1 Element String';
+                }
+                if (qrReviewCard) qrReviewCard.hidden = false;
+                if (qrParseFeedback) qrParseFeedback.hidden = true;
+                showNotification('QR Code Parsed', 'Supplier data extracted! Review fields below.', 'success');
+            } else {
+                throw new Error(res?.detail || 'Unsupported QR code format.');
+            }
+        } catch (err) {
+            console.error('Failed to parse supplier QR:', err);
+            const msg = err.detail || err.message || 'Unsupported QR code format. Please check the text.';
+            if (qrParseFeedback) {
+                qrParseFeedback.textContent = msg;
+                qrParseFeedback.className = 'qr-feedback qr-feedback--error';
+                qrParseFeedback.hidden = false;
+            }
+            if (qrReviewCard) qrReviewCard.hidden = true;
+            showNotification('QR Parse Error', msg, 'error');
+        } finally {
+            parseQrBtn.disabled = false;
+            parseQrBtn.innerHTML = '<i class="fas fa-search"></i> Parse QR';
+        }
+    });
+}
+
+if (applyQrDataBtn) {
+    applyQrDataBtn.addEventListener('click', () => {
+        if (!lastExtractedQrData) return;
+        const nameInput = document.getElementById('materialName');
+        if (nameInput) {
+            nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            nameInput.focus();
+        }
+        showNotification(
+            'Data Verified',
+            'Extracted attributes ready. Please fill in Material Name and Quantity to confirm.',
+            'info'
+        );
+    });
+}
+
+if (clearQrDataBtn) {
+    clearQrDataBtn.addEventListener('click', () => {
+        lastExtractedQrData = null;
+        if (rawQrInput) rawQrInput.value = '';
+        if (qrReviewCard) qrReviewCard.hidden = true;
+        if (qrParseFeedback) qrParseFeedback.hidden = true;
+    });
+}
+
+// Modal closing handlers
+if (closeQrModalBtn) {
+    closeQrModalBtn.addEventListener('click', () => {
+        if (stockpadQrModal) stockpadQrModal.hidden = true;
+    });
+}
+if (doneQrBadgeBtn) {
+    doneQrBadgeBtn.addEventListener('click', () => {
+        if (stockpadQrModal) stockpadQrModal.hidden = true;
+    });
+}
+if (printQrBadgeBtn) {
+    printQrBadgeBtn.addEventListener('click', () => {
+        window.print();
+    });
+}
+
 // ==================== ADD MATERIAL ====================
 const addMaterialForm = document.getElementById('addMaterialForm');
 if (addMaterialForm) {
@@ -641,9 +783,28 @@ if (addMaterialForm) {
             }
             if (materialImagePlaceholder) materialImagePlaceholder.hidden = false;
             if (materialImageInput) materialImageInput.value = '';
+
+            // Reset QR scan stage if used
+            if (rawQrInput) rawQrInput.value = '';
+            if (qrReviewCard) qrReviewCard.hidden = true;
+            if (qrParseFeedback) qrParseFeedback.hidden = true;
+            lastExtractedQrData = null;
+
             renderDashboard();
             populateMaterialSelects();
             showNotification('Success', `Material "${name}" added!`, 'success');
+
+            // Show StockPad QR Badge Printable Modal
+            const qrImg = created?.qrCodeImage || created?.qr_code_image;
+            const qrIdVal = created?.qrId || created?.qr_id;
+            if (qrImg && stockpadQrModal) {
+                if (stockpadQrImage) stockpadQrImage.src = qrImg;
+                if (badgeQrId) badgeQrId.textContent = qrIdVal || 'STOCKPAD:MAT';
+                if (badgeMatName) badgeMatName.textContent = name;
+                if (badgeMatQty) badgeMatQty.textContent = qty;
+                if (badgeMatUnit) badgeMatUnit.textContent = unit;
+                stockpadQrModal.hidden = false;
+            }
         } catch (error) {
             console.error('Failed to add material:', error);
             showNotification('Error', 'Failed to add material. Please try again.', 'error');
