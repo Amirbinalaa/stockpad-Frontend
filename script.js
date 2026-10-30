@@ -763,10 +763,37 @@ if (addMaterialForm) {
         const currency = document.getElementById('materialCurrency')?.value || 'EGP';
         const costingMethod = document.getElementById('materialCostingMethod')?.value || 'MOVING_AVG';
 
+        // Serial quantity validation
+        const serialFromQR = lastExtractedQrData?.serial?.trim() || '';
+        if (serialFromQR && qty !== 1) {
+            showNotification(
+                'Serial Number Validation',
+                `A serial number (${serialFromQR}) identifies a single individual item. Initial quantity is currently set to ${qty}. Please set quantity to 1 to register this serialized unit, or reset QR to register a multi-unit batch.`,
+                'error'
+            );
+            const qtyInput = document.getElementById('initialQty');
+            if (qtyInput) {
+                qtyInput.focus();
+                qtyInput.select();
+            }
+            return;
+        }
+
         try {
             const imageFile = materialImageInput?.files?.[0] || null;
             const created = await dataManager.addMaterial({
-                name, qty, maxQty, unit, lowStockThreshold, costPrice, currency, costingMethod,
+                name,
+                qty,
+                maxQty,
+                unit,
+                lowStockThreshold,
+                costPrice,
+                currency,
+                costingMethod,
+                gtin: lastExtractedQrData?.gtin || null,
+                batchNumber: lastExtractedQrData?.batch_number || '',
+                expiryDate: lastExtractedQrData?.expiry_date || null,
+                serialNumber: serialFromQR,
             }, imageFile);
             const previewSrc = materialImagePreview && !materialImagePreview.hidden
                 ? materialImagePreview.src

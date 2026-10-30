@@ -796,6 +796,10 @@ class DataManager {
             cost_price: materialData.costPrice ?? 0,
             currency: materialData.currency || 'EGP',
             costing_method: materialData.costingMethod || 'MOVING_AVG',
+            gtin: materialData.gtin || null,
+            batch_number: materialData.batchNumber || '',
+            expiry_date: materialData.expiryDate || null,
+            serial_number: materialData.serialNumber || '',
         };
         const created = await ApiService.createMaterial(backendData);
         let payload = created;
@@ -974,6 +978,7 @@ class DataManager {
             qr_id: m.qr_id || null,
             qrId: m.qr_id || null,
             qrCodeImage: m.qr_code_image || null,
+            gtin: m.gtin || null,
             lastUpdated: m.updated_at ? m.updated_at.split('T')[0] : null,
         };
     }
