@@ -2764,9 +2764,24 @@ h4 {
 
 .stockpad-qr-modal-actions {
     display: flex;
-    gap: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.65rem;
     width: 100%;
     justify-content: center;
+    align-items: center;
+}
+
+.stockpad-qr-modal-actions .btn-primary,
+.stockpad-qr-modal-actions .btn-secondary {
+    padding: 0.6rem 1.1rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
 }
 
 /* Print styling: Only print the badge on label printers or standard paper */

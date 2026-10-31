@@ -804,7 +804,13 @@ class DataManager {
         const created = await ApiService.createMaterial(backendData);
         let payload = created;
         if (imageFile) {
-            payload = await ApiService.uploadMaterialImage(created.id, imageFile);
+            const patched = await ApiService.uploadMaterialImage(created.id, imageFile);
+            payload = {
+                ...patched,
+                qr_id: created.qr_id || patched.qr_id,
+                qrCodeImage: created.qr_code_image || created.qrCodeImage,
+                qr_code_image: created.qr_code_image || created.qrCodeImage,
+            };
         }
         const material = this._toFrontendMaterial(payload);
         this.materials.push(material);
@@ -975,9 +981,10 @@ class DataManager {
             costingMethod: m.costing_method || 'MOVING_AVG',
             imageUrl: resolveMediaUrl(imagePath),
             image_url: resolveMediaUrl(imagePath),
-            qr_id: m.qr_id || null,
-            qrId: m.qr_id || null,
-            qrCodeImage: m.qr_code_image || null,
+            qr_id: m.qr_id || m.qrId || null,
+            qrId: m.qr_id || m.qrId || null,
+            qrCodeImage: m.qr_code_image || m.qrCodeImage || null,
+            qr_code_image: m.qr_code_image || m.qrCodeImage || null,
             gtin: m.gtin || null,
             lastUpdated: m.updated_at ? m.updated_at.split('T')[0] : null,
         };

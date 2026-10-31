@@ -2273,6 +2273,46 @@
       <p>No notifications</p>
     </div>
   </div>
+
+  <!-- STOCKPAD QR BADGE PRINTABLE MODAL -->
+  <div id="stockpadQrModal" class="stockpad-qr-modal-overlay" hidden>
+    <div class="stockpad-qr-modal-card">
+      <button type="button" id="closeQrModalBtn" class="stockpad-qr-close-btn" aria-label="Close modal">
+        <i class="fas fa-times"></i>
+      </button>
+      <div class="stockpad-qr-badge" id="printableStockpadBadge">
+        <div class="badge-brand">
+          <span class="badge-brand-title">STOCKPAD</span>
+          <span class="badge-brand-sub">Smart QR Inventory</span>
+        </div>
+        <div class="badge-qr-container">
+          <img id="stockpadQrImage" src="" alt="StockPad QR" />
+        </div>
+        <div class="badge-info">
+          <div class="badge-qr-id" id="badgeQrId">STOCKPAD:MAT-001</div>
+          <div class="badge-mat-name" id="badgeMatName">Material Name</div>
+          <div class="badge-meta">
+            Initial Stock: <span id="badgeMatQty">0</span> <span id="badgeMatUnit">kg</span>
+          </div>
+        </div>
+        <div class="badge-footer">
+          <span>Single Source of Truth (WM)</span>
+        </div>
+      </div>
+      <div class="stockpad-qr-modal-actions no-print">
+        <button type="button" id="saveQrImageBtn" class="btn-primary" style="background: var(--dark-wood); color: #fff;">
+          <i class="fas fa-download"></i> Save QR Image to Device
+        </button>
+        <button type="button" id="printQrBadgeBtn" class="btn-primary">
+          <i class="fas fa-print"></i> Print Label
+        </button>
+        <button type="button" id="doneQrBadgeBtn" class="btn-secondary">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- =============================================
        SCRIPTS
   ============================================= -->
@@ -2817,41 +2857,6 @@
     </div>
   </div>
 
-  <!-- STOCKPAD QR BADGE PRINTABLE MODAL -->
-  <div id="stockpadQrModal" class="stockpad-qr-modal-overlay" hidden>
-    <div class="stockpad-qr-modal-card">
-      <button type="button" id="closeQrModalBtn" class="stockpad-qr-close-btn" aria-label="Close modal">
-        <i class="fas fa-times"></i>
-      </button>
-      <div class="stockpad-qr-badge" id="printableStockpadBadge">
-        <div class="badge-brand">
-          <span class="badge-brand-title">STOCKPAD</span>
-          <span class="badge-brand-sub">Smart QR Inventory</span>
-        </div>
-        <div class="badge-qr-container">
-          <img id="stockpadQrImage" src="" alt="StockPad QR" />
-        </div>
-        <div class="badge-info">
-          <div class="badge-qr-id" id="badgeQrId">STOCKPAD:MAT-001</div>
-          <div class="badge-mat-name" id="badgeMatName">Material Name</div>
-          <div class="badge-meta">
-            Initial Stock: <span id="badgeMatQty">0</span> <span id="badgeMatUnit">kg</span>
-          </div>
-        </div>
-        <div class="badge-footer">
-          <span>Single Source of Truth (WM)</span>
-        </div>
-      </div>
-      <div class="stockpad-qr-modal-actions no-print">
-        <button type="button" id="printQrBadgeBtn" class="btn-primary">
-          <i class="fas fa-print"></i> Print QR Label
-        </button>
-        <button type="button" id="doneQrBadgeBtn" class="btn-secondary">
-          Done
-        </button>
-      </div>
-    </div>
-  </div>
 </body>
 
 </html>

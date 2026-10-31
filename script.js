@@ -626,16 +626,86 @@ const reviewSerial = document.getElementById('reviewSerial');
 const applyQrDataBtn = document.getElementById('applyQrDataBtn');
 const clearQrDataBtn = document.getElementById('clearQrDataBtn');
 
-// StockPad Printable QR Modal
-const stockpadQrModal = document.getElementById('stockpadQrModal');
-const closeQrModalBtn = document.getElementById('closeQrModalBtn');
-const doneQrBadgeBtn = document.getElementById('doneQrBadgeBtn');
-const printQrBadgeBtn = document.getElementById('printQrBadgeBtn');
-const stockpadQrImage = document.getElementById('stockpadQrImage');
-const badgeQrId = document.getElementById('badgeQrId');
-const badgeMatName = document.getElementById('badgeMatName');
-const badgeMatQty = document.getElementById('badgeMatQty');
-const badgeMatUnit = document.getElementById('badgeMatUnit');
+// StockPad Printable QR Modal Helpers & State
+function getStockpadQrModalElements() {
+    return {
+        modal: document.getElementById('stockpadQrModal'),
+        closeBtn: document.getElementById('closeQrModalBtn'),
+        doneBtn: document.getElementById('doneQrBadgeBtn'),
+        printBtn: document.getElementById('printQrBadgeBtn'),
+        saveBtn: document.getElementById('saveQrImageBtn'),
+        image: document.getElementById('stockpadQrImage'),
+        qrId: document.getElementById('badgeQrId'),
+        matName: document.getElementById('badgeMatName'),
+        matQty: document.getElementById('badgeMatQty'),
+        matUnit: document.getElementById('badgeMatUnit'),
+    };
+}
+
+function closeStockpadQrModal() {
+    const modal = document.getElementById('stockpadQrModal');
+    if (modal) {
+        modal.hidden = true;
+        modal.style.display = 'none';
+    }
+}
+
+function openStockpadQrModal({ name, qty, unit, qrId, qrCodeImage }) {
+    const els = getStockpadQrModalElements();
+    if (!els.modal) return;
+
+    setupStockpadQrModalListenersOnce();
+
+    if (els.image) els.image.src = qrCodeImage || '';
+    if (els.qrId) els.qrId.textContent = qrId || 'STOCKPAD:MAT';
+    if (els.matName) els.matName.textContent = name || '';
+    if (els.matQty) els.matQty.textContent = qty ?? 0;
+    if (els.matUnit) els.matUnit.textContent = unit || '';
+
+    els.modal.hidden = false;
+    els.modal.style.display = 'flex';
+}
+
+function setupStockpadQrModalListenersOnce() {
+    const els = getStockpadQrModalElements();
+    if (!els.modal || els.modal.dataset.listenersAttached === 'true') return;
+    els.modal.dataset.listenersAttached = 'true';
+
+    if (els.closeBtn) els.closeBtn.addEventListener('click', closeStockpadQrModal);
+    if (els.doneBtn) els.doneBtn.addEventListener('click', closeStockpadQrModal);
+    if (els.printBtn) els.printBtn.addEventListener('click', () => window.print());
+
+    if (els.saveBtn) {
+        els.saveBtn.addEventListener('click', () => {
+            const qrImg = document.getElementById('stockpadQrImage');
+            const qrIdText = document.getElementById('badgeQrId')?.textContent || 'stockpad-qr';
+            if (!qrImg || !qrImg.src) return;
+            const link = document.createElement('a');
+            link.href = qrImg.src;
+            const safeName = qrIdText.replace(/[^a-zA-Z0-9-_]/g, '_');
+            link.download = `${safeName}-badge.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
+    els.modal.addEventListener('click', (e) => {
+        if (e.target === els.modal) {
+            closeStockpadQrModal();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const m = document.getElementById('stockpadQrModal');
+            if (m && !m.hidden && m.style.display !== 'none') {
+                closeStockpadQrModal();
+            }
+        }
+    });
+}
+
 
 function setAddMaterialMode(mode) {
     currentAddMaterialMode = mode;
@@ -732,22 +802,8 @@ if (clearQrDataBtn) {
     });
 }
 
-// Modal closing handlers
-if (closeQrModalBtn) {
-    closeQrModalBtn.addEventListener('click', () => {
-        if (stockpadQrModal) stockpadQrModal.hidden = true;
-    });
-}
-if (doneQrBadgeBtn) {
-    doneQrBadgeBtn.addEventListener('click', () => {
-        if (stockpadQrModal) stockpadQrModal.hidden = true;
-    });
-}
-if (printQrBadgeBtn) {
-    printQrBadgeBtn.addEventListener('click', () => {
-        window.print();
-    });
-}
+// Initialize StockPad QR modal listeners
+setupStockpadQrModalListenersOnce();
 
 // ==================== ADD MATERIAL ====================
 const addMaterialForm = document.getElementById('addMaterialForm');
@@ -822,15 +878,30 @@ if (addMaterialForm) {
             showNotification('Success', `Material "${name}" added!`, 'success');
 
             // Show StockPad QR Badge Printable Modal
-            const qrImg = created?.qrCodeImage || created?.qr_code_image;
-            const qrIdVal = created?.qrId || created?.qr_id;
-            if (qrImg && stockpadQrModal) {
-                if (stockpadQrImage) stockpadQrImage.src = qrImg;
-                if (badgeQrId) badgeQrId.textContent = qrIdVal || 'STOCKPAD:MAT';
-                if (badgeMatName) badgeMatName.textContent = name;
-                if (badgeMatQty) badgeMatQty.textContent = qty;
-                if (badgeMatUnit) badgeMatUnit.textContent = unit;
-                stockpadQrModal.hidden = false;
+            let qrImg = created?.qrCodeImage || created?.qr_code_image;
+            let qrIdVal = created?.qrId || created?.qr_id;
+
+            // Fallback: If QR image not on creation response, query getMaterialQRBadge endpoint
+            if (!qrImg && created?.id) {
+                try {
+                    const badgeRes = await ApiService.getMaterialQRBadge(created.id);
+                    if (badgeRes?.qr_code_image) {
+                        qrImg = badgeRes.qr_code_image;
+                        qrIdVal = badgeRes.qr_id || qrIdVal;
+                    }
+                } catch (badgeErr) {
+                    console.warn('Failed to fetch fallback QR badge:', badgeErr);
+                }
+            }
+
+            if (qrImg) {
+                openStockpadQrModal({
+                    name,
+                    qty,
+                    unit,
+                    qrId: qrIdVal,
+                    qrCodeImage: qrImg,
+                });
             }
         } catch (error) {
             console.error('Failed to add material:', error);
